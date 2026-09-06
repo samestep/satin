@@ -19,6 +19,10 @@
         icon = pkgs.runCommand "satin-icon.png" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${./logo/render.mjs} 1024 > "$out"
         '';
+        # The same picture as an SVG built from linear gradients (see renderSVG in logo/render.mjs).
+        svg = pkgs.runCommand "satin.svg" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          node ${./logo/render.mjs} svg > "$out"
+        '';
         default = satin;
       });
     };

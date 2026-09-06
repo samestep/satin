@@ -31,9 +31,25 @@ model and the chosen parameters are all in the file, and it needs nothing but
 Node.
 
 ```sh
-nix build .#icon                    # the 1024×1024 PNG
+nix build .#icon                      # the 1024×1024 PNG
 node logo/render.mjs 1024 > icon.png  # the same, without Nix
+nix build .#svg                       # the same picture as an SVG
+node logo/render.mjs svg > icon.svg
 ```
+
+`logo/satin.svg` is that SVG, checked in so it can be shown here:
+
+<img src="logo/satin.svg" width="256" alt="The Satin logo">
+
+It is not a tracing. The ribbon is an extrusion seen by an orthographic
+camera under a light far enough away to count as directional, so a point's
+colour depends only on where it lies along the ribbon's profile, and every
+profile point sweeps a straight line across the image. Colour is therefore a
+linear gradient across those lines, and the script samples its own shading
+model to place the stops. The one thing that is not exact is the soft blend
+between the centre and edge materials, which is approximated by a dozen thin
+strips, each shaded with the intermediate material. Rasterized, the SVG and the
+ray-traced PNG differ by under a level on average.
 
 `ext/icon-*.png` are checked in rather than generated, because Chrome rejects
 SVG icons and rasterizing at build time would make Node a dependency of
