@@ -23,41 +23,45 @@ prebuilt [pdf.js](https://mozilla.github.io/pdf.js/) viewer, applies
 With Nix, `nix build` runs the same script and puts the XPI under
 `result/share/mozilla/extensions/`.
 
-### The icon
-
-The icon is a rendering of a folded satin ribbon, ray-traced by
-`logo/render.mjs`. That script is self-contained: the geometry, the shading
-model and the chosen parameters are all in the file, and it needs nothing but
-Node.
-
-```sh
-nix build .#icon                      # the 1024×1024 PNG
-node logo/render.mjs 1024 > icon.png  # the same, without Nix
-nix build .#svg                       # the same picture as an SVG
-node logo/render.mjs svg > icon.svg
-```
-
-`logo/satin.svg` is that SVG, checked in so it can be shown here:
+### The logo
 
 <img src="logo/satin.svg" width="256" alt="The Satin logo">
 
-It is not a tracing. The ribbon is an extrusion seen by an orthographic
-camera under a light far enough away to count as directional, so a point's
-colour depends only on where it lies along the ribbon's profile, and every
-profile point sweeps a straight line across the image. Colour is therefore a
-linear gradient across those lines, and the script samples its own shading
-model to place the stops. The one thing that is not exact is the soft blend
-between the centre and edge materials, which is approximated by a dozen thin
-strips, each shaded with the intermediate material. Rasterized, the SVG and the
-ray-traced PNG differ by under a level on average.
-
-`ext/icon-*.png` are checked in rather than generated, because Chrome rejects
-SVG icons and rasterizing at build time would make Node a dependency of
-`build.sh` for the sake of five small files. Regenerate them after changing the
-renderer:
+The logo is `logo/satin.svg`, a folded satin ribbon. It is written by
+`logo/render.mjs`, a self-contained Node script holding a small 3D model and the
+chosen parameters, and it is not a tracing or an approximation of a rendering:
+the SVG *is* the picture.
 
 ```sh
-for s in 16 32 48 96 128; do node logo/render.mjs $s > ext/icon-$s.png; done
+nix build .#svg                        # the logo
+node logo/render.mjs > satin.svg       # the same, without Nix
+nix build .#icon                       # a 1024×1024 PNG, rasterized from it
+node logo/render.mjs png 1024 > x.png  # a ray-traced rendering, for checking
+```
+
+The model is a ribbon lying along a diagonal with one half lifted, the two
+halves joined by a bend that overhangs into an S, seen by an orthographic camera
+under a directional light, and shaded as satin in a centre material, an edge
+band, and a sharp strip of the exact midpoint material between them. Two
+properties make that expressible as gradients. The ribbon is an extrusion, so
+every point of its profile sweeps a straight line across the image, all
+parallel. The light is directional and the camera orthographic, so a point's
+colour depends only on where it lies along the profile. So the flat halves are
+uniform fills, the bend is a set of strips filled with a linear gradient across
+the sweep direction, and the material zones are the same strips offset along it.
+Two things are sampled: the outline, the profile's polyline simplified to a tenth
+of a pixel, and the gradient stops, which the shading model places and thins to
+half a level of 255. Those stops, not the shading formula, define the logo.
+Rasterized, the SVG and a ray-traced rendering of the model differ by a quarter
+of a level on average.
+
+`ext/icon-*.png` are rasterizations of the SVG, checked in rather than generated
+because Chrome rejects SVG icons and rasterizing at build time would add a
+dependency to `build.sh` for the sake of five small files. Regenerate them after
+changing the logo:
+
+```sh
+for s in 16 32 48 96 128; do nix shell nixpkgs#resvg -c resvg -w $s -h $s logo/satin.svg ext/icon-$s.png; done
 ```
 
 ### What Satin changes in pdf.js

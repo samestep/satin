@@ -15,13 +15,14 @@
         satin = pkgs.callPackage ./default.nix {
           version = toString (self.lastModified or 0);
         };
-        # The logo as a 1024x1024 PNG. logo/render.mjs is self-contained: model and parameters included.
-        icon = pkgs.runCommand "satin-icon.png" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-          node ${./logo/render.mjs} 1024 > "$out"
-        '';
-        # The same picture as an SVG built from linear gradients (see renderSVG in logo/render.mjs).
+        # The logo: an SVG of lines, elliptical arcs and linear gradients, written by logo/render.mjs, which is
+        # self-contained (model and parameters included).
         svg = pkgs.runCommand "satin.svg" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-          node ${./logo/render.mjs} svg > "$out"
+          node ${./logo/render.mjs} > "$out"
+        '';
+        # The same logo as a 1024x1024 PNG: a rasterization of the SVG.
+        icon = pkgs.runCommand "satin-icon.png" { nativeBuildInputs = [ pkgs.resvg ]; } ''
+          resvg -w 1024 -h 1024 ${svg} "$out"
         '';
         default = satin;
       });

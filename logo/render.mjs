@@ -1,18 +1,19 @@
 #!/usr/bin/env node
-// Render the Satin logo as a PNG.
+// The Satin logo.
 //
-//   node render.mjs <size> [supersample] > icon.png    ray-traced PNG
-//   node render.mjs svg > icon.svg                        the same picture as SVG gradients (see renderSVG)
+//   node render.mjs > satin.svg              the logo: an SVG of lines, elliptical arcs and linear gradients
+//   node render.mjs png <size> [ss] > x.png  a ray-traced rendering of the same model, for checking the SVG against
 //
-// A satin ribbon lies along the line y = x with its lower-left half at z = -h and its upper-right half
-// at z = +h; the bend between them is an arc-length-parametrized S that can overhang. An upright
-// orthographic camera and a point or line light are placed by direction and elevation, and the fabric
-// is shaded with the Ashikhmin-Shirley anisotropic BRDF, using one material for the centre of the
-// ribbon and another for a band along each outer edge. Every pixel is ray-traced at <size> ×
-// <supersample> resolution and box-filtered down in linear light, with rounded corners cut from the
-// frame and transparency outside them. The PNG goes to standard output.
+// A satin ribbon lies along the line y = x with its lower-left half at z = -h and its upper-right half at z = +h,
+// joined by a bend whose heading follows a sine law and can overhang into a true S. An upright orthographic camera
+// looks at the middle of the bend under a directional light, and the fabric is shaded with the Ashikhmin-Shirley
+// anisotropic BRDF, in a centre material, an edge band, and a sharp strip of the midpoint material between them.
+// Because the ribbon is an extrusion, the camera orthographic and the light directional, the picture is a set of
+// strips filled with linear gradients, which is what renderSVG below writes: the SVG is the logo, and the PNGs are
+// rasterizations of it. The ray tracer is kept only to check that claim.
 //
-// PARAMS below are the settled design; the model code is the same as the interactive design tool's.
+// PARAMS is the settled design. The model code between the markers is shared verbatim with logo/lab.html, the
+// interactive tool used to design it.
 import { deflateSync } from 'node:zlib';
 
 const PARAMS = {
@@ -41,7 +42,8 @@ const PARAMS = {
   "sheenPow": 2.4,
   "ambient": 0,
   "edgeFrac": 6,
-  "edgeSoft": 0.06,
+  "stripSteps": 1,
+  "stripFrac": 0.25,
   "baseColorE": "#202022",
   "specTintE": 0.73,
   "specF0E": 0.33,
@@ -51,7 +53,7 @@ const PARAMS = {
   "sheenE": 0.13,
   "sheenPowE": 8,
   "ambientE": 0.95,
-  "lightShape": "point",
+  "lightShape": "dir",
   "lightAz": 176,
   "lightEl": 9.5,
   "lightDist": 2,
@@ -64,11 +66,7 @@ const PARAMS = {
   "stripB": "#eef2e8"
 };
 
-const [sizeArg, ssArg] = process.argv.slice(2);
-if (!sizeArg) { console.error('usage: render.mjs <size> [supersample] > icon.png\n       render.mjs svg > icon.svg'); process.exit(2); }
-const wantSVG = sizeArg === 'svg';
-const size = wantSVG ? 1024 : Math.max(1, Math.round(+sizeArg)), SS = Math.max(1, Math.round(+(ssArg ?? 3)));
-
+// ======== Satin model. This block is shared verbatim by logo/lab.html and logo/render.mjs. ========
 const D2R = Math.PI / 180, R2 = Math.SQRT1_2;
 
 // ---------- color helpers ----------
@@ -77,14 +75,12 @@ const lin2srgb = c => { c = clamp01(c); return c <= 0.0031308 ? 12.92 * c : 1.05
 const srgb2lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 const hex2lin = h => [1, 3, 5].map(i => srgb2lin(parseInt(h.slice(i, i + 2), 16) / 255));
 const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-const byte = v => ('0' + Math.round(clamp01(v) * 255).toString(16)).slice(-2);
-const lin2hex = c => '#' + byte(lin2srgb(c[0])) + byte(lin2srgb(c[1])) + byte(lin2srgb(c[2]));
+const lin2hex = c => '#' + c.map(v => Math.round(lin2srgb(v) * 255).toString(16).padStart(2, '0')).join('');
 const softclip = c => c <= 0.75 ? c : 0.75 + 0.25 * Math.tanh((c - 0.75) / 0.25);
 
 // ---------- vectors ----------
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 // ---------- scene: ribbon + camera ----------
 function makeScene(P) {
@@ -150,34 +146,29 @@ function makeScene(P) {
   return { ray, intersect, S, pan, r, u, f, curve: { cs, cz, cth, M, H, sStart, sEnd, sMin, sMax }, info: { L, run: sEnd - sStart, overhang: Math.max(0, sMax - sEnd, sStart - sMin) } };
 }
 
-// ---------- shading ----------
-// everything about light and material that does not depend on the pixel
+// ---------- light and materials ----------
 function lightMaterial(P) {
-  const lc = hex2lin(P.lightColor);
-  const expo = Math.pow(2, P.exposure), I = P.lightIntensity * expo;
-  // one parameter set per material; suffix '' is the centre, 'E' the edge band
+  const lc = hex2lin(P.lightColor), expo = Math.pow(2, P.exposure), I = P.lightIntensity * expo;
   const mat = x => { const base = hex2lin(P['baseColor' + x]); return { base, spec: base.map(b => 1 + (b - 1) * P['specTint' + x]), lnu: P['glossAlong' + x], lnv: P['glossAcross' + x], F0: P['specF0' + x], psi: P['threadAngle' + x] * D2R, sheenK: P['sheen' + x] * expo, sheenPow: P['sheenPow' + x], amb: P['ambient' + x] * expo }; };
-  const bandW = P.edgeFrac / 100 * P.width, blendW = P.edgeSoft * bandW;
-  // light: point or infinite line, normalized so the irradiance at the origin does not change with distance
+  const W = P.width, bandW = P.edgeFrac / 100 * W, stripW = P.stripFrac / 100 * W, steps = Math.max(0, Math.round(P.stripSteps));
   const laz = P.lightAz * D2R, lel = P.lightEl * D2R, LD = Math.pow(10, P.lightDist);
-  const Q0 = [Math.cos(lel) * Math.cos(laz) * LD, Math.cos(lel) * Math.sin(laz) * LD, Math.sin(lel) * LD];
-  const isLine = P.lightShape !== 'point';
+  const dir = [Math.cos(lel) * Math.cos(laz), Math.cos(lel) * Math.sin(laz), Math.sin(lel)];
+  const Q0 = dir.map(v => v * LD), isDir = P.lightShape === 'dir', isLine = P.lightShape === 'lineS' || P.lightShape === 'lineU';
   const le = P.lightShape === 'lineS' ? [R2, R2, 0] : [-R2, R2, 0];
   const q0e = dot(Q0, le), d0 = isLine ? Math.hypot(Q0[0] - q0e * le[0], Q0[1] - q0e * le[1], Q0[2] - q0e * le[2]) : LD;
-  return { lc, I, Q0, isLine, le, LD, d0, W: P.width, bg: hex2lin(P.bg), m0: mat(''), m1: mat('E'), bandW, blendW };
+  return { lc, I, Q0, dir, isDir, isLine, le, LD, d0, W, bg: hex2lin(P.bg), m0: mat(''), m1: mat('E'), bandW, stripW, steps };
 }
-// blend factor toward the edge material from the distance to the nearest ribbon edge
-function edgeMix(ph, bandW, blendW) {
-  if (blendW < 1e-9) return ph < bandW ? 1 : 0;
-  const t = Math.min(1, Math.max(0, (ph - (bandW - blendW)) / (2 * blendW)));
-  return 1 - t * t * (3 - 2 * t);
+// material blend at a distance `dist` from the nearer ribbon edge: the edge material in the band, then `steps`
+// strips of intermediate materials (parameters blended, then shaded), then the centre material
+function zoneMix(dist, LM) {
+  if (dist < LM.bandW) return 1;
+  for (let k = 0; k < LM.steps; k++) if (dist < LM.bandW + LM.stripW * (k + 1)) return 1 - (k + 0.5) / LM.steps;
+  return 0;
 }
-// linear rgb of the ribbon at world point P with profile heading th, seen along view direction V,
-// with material blend mm (0 = centre material, 1 = edge material). Shared by the ray tracer and the SVG sampler.
+// linear rgb of the ribbon at world point P with profile heading th, seen along V, with material blend mm
 function shadePoint(LM, P, Px, Py, Pz, th, Vx, Vy, Vz, mm) {
-  const { lc, I, Q0, isLine, le, LD, d0, m0, m1 } = LM;
+  const { lc, I, Q0, isLine, isDir, le, LD, d0, m0, m1 } = LM;
   const lerp = (a, b, t) => a + (b - a) * t;
-  // material at this point: centre, edge, or a blend across the boundary
   const base = [lerp(m0.base[0], m1.base[0], mm), lerp(m0.base[1], m1.base[1], mm), lerp(m0.base[2], m1.base[2], mm)];
   const spec = [lerp(m0.spec[0], m1.spec[0], mm), lerp(m0.spec[1], m1.spec[1], mm), lerp(m0.spec[2], m1.spec[2], mm)];
   const nu = Math.pow(10, lerp(m0.lnu, m1.lnu, mm)), nv = Math.pow(10, lerp(m0.lnv, m1.lnv, mm));
@@ -186,37 +177,28 @@ function shadePoint(LM, P, Px, Py, Pz, th, Vx, Vy, Vz, mm) {
   const sheenK = lerp(m0.sheenK, m1.sheenK, mm), sheenPow = lerp(m0.sheenPow, m1.sheenPow, mm), amb = lerp(m0.amb, m1.amb, mm);
   let cr = base[0] * amb, cg = base[1] * amb, cb = base[2] * amb;
   const sth = Math.sin(th), cth = Math.cos(th);
-  // normal of the profile, two-sided: face the camera
-  let Nx = -sth * R2, Ny = -sth * R2, Nz = cth;
-  let flip = 1; if (Nx * Vx + Ny * Vy + Nz * Vz < 0) { Nx = -Nx; Ny = -Ny; Nz = -Nz; flip = -1; }
-  // thread direction in the tangent plane: along the ribbon (cth*e_s + sth*z) rotated toward across (e_u)
-  const Tx = cpsi * cth * R2 - spsi * R2, Ty = cpsi * cth * R2 + spsi * R2, Tz = cpsi * sth;
+  let Nx = -sth * R2, Ny = -sth * R2, Nz = cth;                        // two-sided: face the camera
+  if (Nx * Vx + Ny * Vy + Nz * Vz < 0) { Nx = -Nx; Ny = -Ny; Nz = -Nz; }
+  const Tx = cpsi * cth * R2 - spsi * R2, Ty = cpsi * cth * R2 + spsi * R2, Tz = cpsi * sth;   // thread direction
   const NdotV = Math.max(1e-4, Nx * Vx + Ny * Vy + Nz * Vz);
   const sh = sheenK * Math.pow(Math.max(0, 1 - NdotV), sheenPow);
   cr += spec[0] * sh; cg += spec[1] * sh; cb += spec[2] * sh;
-  // light directions: diffuse (Ld) and specular (Ls) and the normalized attenuation
   let Ldx, Ldy, Ldz, Lsx, Lsy, Lsz, att;
-  const wx = Q0[0] - Px, wy = Q0[1] - Py, wz = Q0[2] - Pz;
-  if (!isLine) {
-    const d2 = wx * wx + wy * wy + wz * wz, il = 1 / Math.sqrt(d2);
-    Ldx = Lsx = wx * il; Ldy = Lsy = wy * il; Ldz = Lsz = wz * il; att = LD * LD / d2;
-  } else {
-    // diffuse: an infinite line integrates to the foot-point direction with 1/d falloff
-    const fw = wx * le[0] + wy * le[1] + wz * le[2];
-    const fx = wx - fw * le[0], fy = wy - fw * le[1], fz = wz - fw * le[2];
-    const dp = Math.max(1e-6, Math.hypot(fx, fy, fz));
-    Ldx = fx / dp; Ldy = fy / dp; Ldz = fz / dp; att = d0 / dp;
-    // specular: the point on the line closest to the mirror direction of the view ray
-    const nv2 = 2 * (Nx * Vx + Ny * Vy + Nz * Vz);
-    const Rx = nv2 * Nx - Vx, Ry = nv2 * Ny - Vy, Rz = nv2 * Nz - Vz;
-    const bb = Rx * le[0] + Ry * le[1] + Rz * le[2], dd = Rx * wx + Ry * wy + Rz * wz, den = 1 - bb * bb;
-    let lam = den > 1e-6 ? (dd - bb * fw) / den : 0; if (lam < 0) lam = 0;
-    const t = lam * bb - fw;
-    const sx = wx + t * le[0], sy = wy + t * le[1], sz = wz + t * le[2], il = 1 / Math.max(1e-6, Math.hypot(sx, sy, sz));
-    Lsx = sx * il; Lsy = sy * il; Lsz = sz * il;
+  if (isDir) { Ldx = Lsx = LM.dir[0]; Ldy = Lsy = LM.dir[1]; Ldz = Lsz = LM.dir[2]; att = 1; }
+  else {
+    const wx = Q0[0] - Px, wy = Q0[1] - Py, wz = Q0[2] - Pz;
+    if (!isLine) { const d2 = wx * wx + wy * wy + wz * wz, il = 1 / Math.sqrt(d2); Ldx = Lsx = wx * il; Ldy = Lsy = wy * il; Ldz = Lsz = wz * il; att = LD * LD / d2; }
+    else {
+      const fw = wx * le[0] + wy * le[1] + wz * le[2], fx = wx - fw * le[0], fy = wy - fw * le[1], fz = wz - fw * le[2], dp = Math.max(1e-6, Math.hypot(fx, fy, fz));
+      Ldx = fx / dp; Ldy = fy / dp; Ldz = fz / dp; att = d0 / dp;
+      const nv2 = 2 * (Nx * Vx + Ny * Vy + Nz * Vz), Rx = nv2 * Nx - Vx, Ry = nv2 * Ny - Vy, Rz = nv2 * Nz - Vz;
+      const bb = Rx * le[0] + Ry * le[1] + Rz * le[2], dd = Rx * wx + Ry * wy + Rz * wz, den = 1 - bb * bb;
+      let lam = den > 1e-6 ? (dd - bb * fw) / den : 0; if (lam < 0) lam = 0;
+      const t = lam * bb - fw, sx = wx + t * le[0], sy = wy + t * le[1], sz = wz + t * le[2], il = 1 / Math.max(1e-6, Math.hypot(sx, sy, sz));
+      Lsx = sx * il; Lsy = sy * il; Lsz = sz * il;
+    }
   }
-  const NdotLd = Nx * Ldx + Ny * Ldy + Nz * Ldz, NdotLs = Nx * Lsx + Ny * Lsy + Nz * Lsz;
-  const wgt = I * att;
+  const NdotLd = Nx * Ldx + Ny * Ldy + Nz * Ldz, NdotLs = Nx * Lsx + Ny * Lsy + Nz * Lsz, wgt = I * att;
   if (NdotLd > 0) {
     const kd = kdc * (1 - Math.pow(1 - NdotLd / 2, 5)) * (1 - Math.pow(1 - NdotV / 2, 5)) * NdotLd * wgt;
     cr += base[0] * kd * lc[0]; cg += base[1] * kd * lc[1]; cb += base[2] * kd * lc[2];
@@ -226,8 +208,7 @@ function shadePoint(LM, P, Px, Py, Pz, th, Vx, Vy, Vz, mm) {
     const NdotH = Nx * Hx + Ny * Hy + Nz * Hz, HdotV = Math.max(1e-4, Hx * Vx + Hy * Vy + Hz * Vz);
     const F = F0 + (1 - F0) * Math.pow(1 - HdotV, 5);
     const Bx = Ny * Tz - Nz * Ty, By = Nz * Tx - Nx * Tz, Bz = Nx * Ty - Ny * Tx;
-    const HdotT = Hx * Tx + Hy * Ty + Hz * Tz, HdotB = Hx * Bx + Hy * By + Hz * Bz;
-    const den = 1 - NdotH * NdotH;
+    const HdotT = Hx * Tx + Hy * Ty + Hz * Tz, HdotB = Hx * Bx + Hy * By + Hz * Bz, den = 1 - NdotH * NdotH;
     let sp = normK * F / (HdotV * Math.max(NdotLs, NdotV));
     if (den > 1e-7) sp *= Math.pow(Math.max(0, NdotH), (nu * HdotT * HdotT + nv * HdotB * HdotB) / den);
     if (sp > 50) sp = 50;
@@ -237,24 +218,21 @@ function shadePoint(LM, P, Px, Py, Pz, th, Vx, Vy, Vz, mm) {
   if (P.rolloff) { cr = softclip(cr); cg = softclip(cg); cb = softclip(cb); }
   return [cr, cg, cb];
 }
-// ---------- renderer: one row of the image at a time ----------
+
+// ---------- CPU ray tracer (the design tool's fallback, and the renderer's check mode) ----------
 function makeRenderer(P, r, padC) {
   const n = r + 2 * padC, lo = -padC / r, hi = 1 + padC / r, span = hi - lo;
-  const SC = makeScene(P), S = SC.S;
-  const LM = lightMaterial(P), { W, m0, bandW, blendW } = LM;
+  const SC = makeScene(P), S = SC.S, LM = lightMaterial(P), { W, m0 } = LM;
   const ray = { o: [0, 0, 0], d: [0, 0, 0] }, HL = new Float64Array(16), HT = new Float64Array(16);
-  // shade one row j of the grid into the given buffers (shade and mask may be null)
   const renderRow = (j, shade, rgb, phi, mask) => {
     const ny = lo + (j + 0.5) / n * span, b = (0.5 - ny - P.panY) * S, jin = j >= padC && j < padC + r;
     for (let i = 0; i < n; i++) {
       const nx = lo + (i + 0.5) / n * span, a = (nx - 0.5 - P.panX) * S, idx = j * n + i;
       SC.ray(a, b, ray);
-      const o = ray.o, d = ray.d;
-      const nh = SC.intersect(o, d, HL, HT);
-      // choose the nearest hit that lies within the ribbon; otherwise the hit closest to being inside
-      let chosen = -1, firstL = Infinity, bestPhi = -Infinity, bestK = -1, phSel = -1;
+      const o = ray.o, d = ray.d, nh = SC.intersect(o, d, HL, HT);
+      let chosen = -1, firstL = Infinity, bestPhi = -Infinity, bestK = -1, phSel = -1;   // nearest hit inside the ribbon
       for (let k = 0; k < nh; k++) {
-        const l = HL[k], u = ((o[1] + l * d[1]) - (o[0] + l * d[0])) * R2, ph = Math.min(u, W - u);
+        const l = HL[k], uu = ((o[1] + l * d[1]) - (o[0] + l * d[0])) * R2, ph = Math.min(uu, W - uu);
         if (ph > bestPhi) { bestPhi = ph; bestK = k; }
         if (ph >= 0 && l < firstL) { firstL = l; chosen = k; phSel = ph; }
       }
@@ -262,32 +240,33 @@ function makeRenderer(P, r, padC) {
       if (!inside) { chosen = bestK; phSel = bestPhi; }
       phi[idx] = nh ? bestPhi : -1;
       if (mask) mask[idx] = (inside && jin && i >= padC && i < padC + r) ? 1 : 0;
-      if (chosen < 0) {
-        const cr = m0.base[0] * m0.amb, cg = m0.base[1] * m0.amb, cb = m0.base[2] * m0.amb;
-        rgb[idx * 3] = cr; rgb[idx * 3 + 1] = cg; rgb[idx * 3 + 2] = cb; if (shade) shade[idx] = lin2srgb(0.2126 * cr + 0.7152 * cg + 0.0722 * cb);
-        continue;
-      }
-      const l = HL[chosen], th = HT[chosen];
-      const [cr, cg, cb] = shadePoint(LM, P, o[0] + l * d[0], o[1] + l * d[1], o[2] + l * d[2], th, -d[0], -d[1], -d[2], edgeMix(phSel, bandW, blendW));
+      let cr, cg, cb;
+      if (chosen < 0) { cr = m0.base[0] * m0.amb; cg = m0.base[1] * m0.amb; cb = m0.base[2] * m0.amb; }
+      else { const l = HL[chosen]; [cr, cg, cb] = shadePoint(LM, P, o[0] + l * d[0], o[1] + l * d[1], o[2] + l * d[2], HT[chosen], -d[0], -d[1], -d[2], zoneMix(phSel, LM)); }
       rgb[idx * 3] = cr; rgb[idx * 3 + 1] = cg; rgb[idx * 3 + 2] = cb;
       if (shade) shade[idx] = lin2srgb(0.2126 * cr + 0.7152 * cg + 0.0722 * cb);
     }
   };
   return { n, r, padC, lo, hi, span, renderRow, info: SC.info, S, basis: { r: SC.r, u: SC.u } };
 }
+function renderField(P, r) {
+  const padC = 1, R = makeRenderer(P, r, padC), n = R.n;
+  const shade = new Float32Array(n * n), rgb = new Float32Array(n * n * 3), phi = new Float32Array(n * n), mask = new Uint8Array(n * n);
+  for (let j = 0; j < n; j++) R.renderRow(j, shade, rgb, phi, mask);
+  return Object.assign({ shade, rgb, phi, mask }, R);
+}
 
-
-// ---------- SVG: the same picture as gradients ----------
-// The ribbon is an extrusion, the camera orthographic and the light (at distance 100) all but directional,
-// so a surface point's colour depends only on where it lies along the profile, and every profile point
-// sweeps a straight line in the image, all parallel. Colour is therefore constant along those lines and a
-// linear gradient across them. The profile is split where its image reverses direction (the folds of the
-// S), each monotone piece becomes a strip filled with one gradient, and the strips are painted far to near.
-// The edge band is the same construction with the edge material; its soft blend, the one feature that is
-// not a function of one coordinate, is approximated by stacking translated copies of the band at
-// decreasing opacity, so no filters are needed.
-function renderSVG(P, VB = 1024, K = 12) {
+// ---------- SVG: the picture itself ----------
+// The ribbon is an extrusion seen by an orthographic camera under a directional light, so a surface point's colour
+// depends only on where it lies along the profile, and every profile point sweeps a straight line across the image,
+// all parallel. Colour is therefore constant along those lines and a linear gradient across them. The profile is
+// split where its image reverses direction (the folds of the S); each monotone piece becomes a strip filled with one
+// gradient, painted far to near, and the material zones are the same strips offset along the sweep. The flat halves
+// are uniform fills. What is sampled: the outline, a 240-segment polyline simplified to a tenth of a pixel, and the
+// gradient stops, placed by the shading model and thinned to `tol` levels of 255.
+function renderSVG(P, VB = 1024, tol = 0.5) {
   const SC = makeScene(P), LM = lightMaterial(P), S = SC.S, pan = SC.pan, C = SC.curve;
+  if (!LM.isDir) throw new Error('The SVG needs a directional light: with a point or line light the flat parts of the ribbon are not uniform.');
   const W = LM.W, H = C.H, M = C.M, es = [R2, R2, 0], eu = [-R2, R2, 0], V = [-SC.f[0], -SC.f[1], -SC.f[2]];
   const frame = Pw => [dot(Pw, SC.r) / S + 0.5 + pan[0], 0.5 - dot(Pw, SC.u) / S - pan[1]];   // 0..1, y down
   const uf = [dot(eu, SC.r) / S, -dot(eu, SC.u) / S], ul = Math.hypot(uf[0], uf[1]);          // sweep per unit u
@@ -390,52 +369,45 @@ function renderSVG(P, VB = 1024, K = 12) {
     }
     return raw.filter((_, i) => keep[i]).map(st => `<stop offset="${(Math.round(st.o * 1e5) / 1e5)}" stop-color="${hex(st.c.map(x => srgb2lin(Math.max(0, Math.min(255, x)) / 255)))}"/>`).join('');
   };
-  const srgb2lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  // the edge band: a solid part where the edge material is pure, then K thin sub-bands across the blend, each
-  // shaded with the intermediate material (parameters blended, then shaded, exactly as the ray tracer does)
-  const bandW = LM.bandW, blendW = LM.blendW, hasBand = P.edgeFrac > 0;
-  const inner = Math.max(0, bandW - blendW), step = blendW > 0 ? 2 * blendW / K : 0;
-  const subs = [];
-  if (hasBand && step > 0) for (let k = 0; k < K; k++) { const d = inner + step * k; subs.push({ d, mm: edgeMix(d + step / 2, bandW, blendW) }); }
-  if (process.env.SVG_DEBUG) console.error({ ul, sweepPx: uf.map(v => v * VB), pieces: pieces.map((pc, i) => ({ i, i0: pc.i0, i1: pc.i1, tMin: +pc.tMin.toFixed(3), tMax: +pc.tMax.toFixed(3), range: ranges[i] })), order });
+  // material zones, outermost first so each later one lies inside the one before it (no seams against the background):
+  // the centre over the whole width, then the strips of intermediate material, then the edge band
+  const zones = [{ w: W, mm: 0 }];
+  for (let k = LM.steps - 1; k >= 0; k--) zones.push({ w: LM.bandW + LM.stripW * (k + 1), mm: 1 - (k + 0.5) / LM.steps });
+  if (LM.bandW > 0) zones.push({ w: LM.bandW, mm: 1 });
+  const farToo = W >= 2 * (LM.bandW + LM.stripW * LM.steps);   // the far edge too, unless the ribbon is so narrow the zones would overlap
+  if (typeof process !== "undefined" && process.env.SVG_DEBUG) console.error({ ul, sweepPx: uf.map(v => v * VB), pieces: pieces.map((pc, i) => ({ i, i0: pc.i0, i1: pc.i1, tMin: +pc.tMin.toFixed(3), tMax: +pc.tMax.toFixed(3), range: ranges[i] })), order });
   const defs = [], body = [];
   const poly = (pts, off) => pts.map(p => `${f2((p[0] + off[0]) * VB)} ${f2((p[1] + off[1]) * VB)}`);
   const tr = d => `translate(${f2(d * uf[0] * VB)} ${f2(d * uf[1] * VB)})`;
-  const rx = P.corner / 100 * VB;
-  defs.push(`<clipPath id="frame"><rect width="${VB}" height="${VB}" rx="${f2(rx)}"/></clipPath>`);
+  defs.push(`<clipPath id="frame"><rect width="${VB}" height="${VB}" rx="${f2(P.corner / 100 * VB)}"/></clipPath>`);
   body.push(`<rect width="${VB}" height="${VB}" fill="${P.bg}"/>`);
+  let gid = 0;
   order.forEach(k => {
     const pc = pieces[k]; if (pc.tMax - pc.tMin < 1e-6 || pc.gMax - pc.gMin < 1e-6) return;
     const [i0, i1] = ranges[k];
     const edge = rdp(verts.slice(i0, i1 + 1).map(v => v.p), 0.1 / VB);
+    const flat = verts.slice(pc.i0, pc.i1 + 1).every(v => v.th === 0);   // a flat half: one colour, no gradient
     const g1 = [pc.gMin * nh[0] * VB, pc.gMin * nh[1] * VB], g2 = [pc.gMax * nh[0] * VB, pc.gMax * nh[1] * VB];
     const gradAttrs = `gradientUnits="userSpaceOnUse" x1="${f2(g1[0])}" y1="${f2(g1[1])}" x2="${f2(g2[0])}" y2="${f2(g2[1])}"`;
-    defs.push(`<linearGradient id="c${k}" ${gradAttrs}>${stopsFor(pc, 0, W / 2)}</linearGradient>`);
-    body.push(`<path d="M${poly(edge, [0, 0]).join('L')}L${poly(edge.slice().reverse(), [W * uf[0], W * uf[1]]).join('L')}Z" fill="url(#c${k})"/>`);
-    if (!hasBand) return;
-    const band = w => `M${poly(edge, [0, 0]).join('L')}L${poly(edge.slice().reverse(), [w * uf[0], w * uf[1]]).join('L')}Z`;
-    const far = W >= 2 * (bandW + blendW);      // the far edge too, unless the ribbon is so narrow the bands would overlap
-    if (inner > 0) {
-      defs.push(`<linearGradient id="e${k}" ${gradAttrs}>${stopsFor(pc, 1, inner / 2)}</linearGradient>`, `<path id="b${k}" d="${band(inner)}"/>`);
-      body.push(`<use href="#b${k}" fill="url(#e${k})"/>`);
-      if (far) body.push(`<use href="#b${k}" transform="${tr(W - inner)}" fill="url(#e${k})"/>`);
-    }
-    if (subs.length) {
-      defs.push(`<path id="s${k}" d="${band(step)}"/>`);
-      subs.forEach((sb, j) => {
-        defs.push(`<linearGradient id="e${k}_${j}" ${gradAttrs}>${stopsFor(pc, sb.mm, sb.d + step / 2, 2)}</linearGradient>`);   // a strip a few pixels wide hides small errors
-        body.push(`<use href="#s${k}" transform="${tr(sb.d)}" fill="url(#e${k}_${j})"/>`);
-        if (far) body.push(`<use href="#s${k}" transform="${tr(W - sb.d - step)}" fill="url(#e${k}_${j})"/>`);
-      });
-    }
+    const zone = w => `M${poly(edge, [0, 0]).join('L')}L${poly(edge.slice().reverse(), [w * uf[0], w * uf[1]]).join('L')}Z`;
+    zones.forEach((z, zi) => {
+      let fill;
+      if (flat) { const v = verts[pc.i0]; fill = hex(shadePoint(LM, P, v.Pw[0], v.Pw[1], v.Pw[2], 0, V[0], V[1], V[2], z.mm)); }
+      else { defs.push(`<linearGradient id="g${gid}" ${gradAttrs}>${stopsFor(pc, z.mm, z.w / 2, tol)}</linearGradient>`); fill = `url(#g${gid++})`; }
+      body.push(`<path d="${zone(z.w)}" fill="${fill}"/>`);
+      if (zi > 0 && farToo) body.push(`<path d="${zone(z.w)}" transform="${tr(W - z.w)}" fill="${fill}"/>`);
+    });
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VB} ${VB}" width="${VB}" height="${VB}">\n<defs>\n${defs.join('\n')}\n</defs>\n<g clip-path="url(#frame)">\n${body.join('\n')}\n</g>\n</svg>\n`;
 }
 
-// ---- render at supersampled resolution ----
-const P = PARAMS, n = size * SS;
-if (wantSVG) { process.stdout.write(renderSVG(P)); process.exit(0); }
-const R = makeRenderer(P, n, 0);
+// ======== end of the shared model ========
+
+// ---- command line ----
+const args = process.argv.slice(2), P = PARAMS;
+if (args[0] !== 'png') { process.stdout.write(renderSVG(P)); process.exit(0); }
+const size = Math.max(1, Math.round(+args[1] || 1024)), SS = Math.max(1, Math.round(+(args[2] ?? 3)));
+const n = size * SS, R = makeRenderer(P, n, 0);
 const rgb = new Float32Array(n * n * 3), phi = new Float32Array(n * n);
 const t0 = Date.now();
 for (let j = 0; j < n; j++) R.renderRow(j, null, rgb, phi, null);
