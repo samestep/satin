@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Satin",
+  "version": "0.0.0",
+  "description": "Recolor PDFs live: read the document's real palette and remap any color, with an Oklab lightness inversion for dark reading.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "satin@sam.local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "minimum_chrome_version": "127",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Satin",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    }
+  },
+  "icons": {
+    "48": "icon-48.png",
+    "96": "icon-96.png",
+    "128": "icon-128.png"
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "service_worker": "background.js"
+  }
+}

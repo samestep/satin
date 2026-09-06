@@ -1,0 +1,22 @@
+Load Satin's viewer controller and its stylesheet.
+
+This is the only change Satin makes to the pdf.js distribution; every other
+file is byte-identical to the official release (pdfjs-6.2.108-dist.zip from
+https://github.com/mozilla/pdf.js/releases/tag/v6.2.108).
+
+The tags go after viewer.mjs because that module publishes
+window.PDFViewerApplication as its body runs, and the controller needs it. The
+color engine is not injected here: viewer.js imports it, and opens the document
+itself, so nothing is painted before the canvas accessors are in place.
+
+--- a/web/viewer.html
++++ b/web/viewer.html
+@@ -38,7 +38,7 @@
+ 
+     <link rel="stylesheet" href="viewer.css" />
+ 
+-  <script src="viewer.mjs" type="module"></script>
++  <script src="viewer.mjs" type="module"></script><link rel="stylesheet" href="../../tint/viewer.css" /><script src="../../tint/viewer.js" type="module"></script>
+   </head>
+ 
+   <body tabindex="0">

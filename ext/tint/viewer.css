@@ -1,0 +1,5 @@
+/* The page area behind a rendered canvas, so an unpainted page does not flash
+   white against a dark document. */
+.pdfViewer .page {
+  background-color: var(--satin-page-bg, #fff);
+}

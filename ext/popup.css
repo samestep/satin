@@ -1,0 +1,255 @@
+/* Firefox sizes a popup to its content, so the width is set here and the
+   palette scrolls rather than growing the popup without bound. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1c1c1c;
+  --muted: #626262;
+  --line: #cfcfcf;
+  --btn: #f2f2f2;
+  --btn-hover: #e6e6e6;
+  --accent: #2f6fd0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #232323;
+    --fg: #ececec;
+    --muted: #a5a5a5;
+    --line: #4a4a4a;
+    --btn: #333333;
+    --btn-hover: #414141;
+    --accent: #7aa2f7;
+  }
+}
+
+body {
+  box-sizing: border-box;
+  width: 320px;
+  max-width: 100%;
+  margin: 0;
+  padding: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+#unavailable {
+  padding: 6px 4px;
+  color: var(--muted);
+}
+
+#ui {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+button {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--btn);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Guarded, because a touch device keeps the hover state stuck on whatever was
+   tapped last. */
+@media (hover: hover) {
+  button:hover:not(:disabled) {
+    background: var(--btn-hover);
+  }
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.actions button:first-child {
+  margin-right: auto;
+}
+
+.axis span {
+  flex: none;
+  width: 4.4em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* A range input has an intrinsic minimum width, and a flex item will not shrink
+   below it without this — which is what pushed the readout off the edge. */
+.axis input {
+  flex: 1;
+  min-width: 0;
+}
+
+.axis output {
+  width: 30px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.palette {
+  display: flex;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  padding-right: 2px;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.entryMain {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.entry.tweaked code {
+  color: var(--accent);
+}
+
+.sw,
+.target {
+  width: 22px;
+  height: 20px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0;
+}
+
+.target {
+  width: 30px;
+  cursor: pointer;
+}
+
+.arrow {
+  color: var(--muted);
+}
+
+.entry code {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.entry .entryMain button:last-child {
+  padding: 2px 6px;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 6px 24px;
+}
+
+.editor[hidden] {
+  display: none;
+}
+
+.oklch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.oklch span {
+  width: 10px;
+}
+
+.oklch input {
+  flex: 1;
+  margin: 0;
+}
+
+.empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+footer {
+  color: var(--muted);
+}
+
+/* Touch. Last in the file because every rule here overrides a mouse-sized one
+   above it. The popup arrives as a sheet rather than a panel anchored to a
+   toolbar button, and every target has to clear Apple's 44pt minimum. 16px text
+   is not a style choice: WebKit zooms the page when a control smaller than that
+   takes focus. */
+@media (pointer: coarse) {
+  body {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  button {
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+
+  input[type="range"] {
+    height: 44px;
+  }
+
+  /* Swatches are targets, not buttons in the visual sense, so they take an
+     explicit height rather than the 44px minimum above — the row would
+     otherwise stretch them into tall slabs. */
+  .sw,
+  .target {
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+  }
+
+  .target {
+    width: 48px;
+  }
+
+  .entry .entryMain button:last-child {
+    min-width: 44px;
+    padding: 8px;
+  }
+
+  .entry code {
+    font-size: 14px;
+  }
+
+  /* The palette scrolls inside a fixed-height popup on the desktop; in a sheet
+     it should simply be as long as it is and scroll with the sheet. */
+  .palette {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .oklch {
+    font-size: 13px;
+  }
+
+  .oklch span {
+    width: 1.2em;
+  }
+
+  .editor {
+    margin-left: 40px;
+  }
+}

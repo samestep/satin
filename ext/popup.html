@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!-- Without this, WebKit lays the popup out at 980px and scales it down to
+         fit, which is why the popup arrives unreadably small on a phone. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div id="unavailable" hidden>
+      Open a PDF and click this button to tint it.
+    </div>
+    <div id="ui" hidden>
+      <div class="row actions">
+        <button type="button" data-act="clear">Clear tweaks</button>
+        <button type="button" data-act="undo" title="Undo">↶</button>
+        <button type="button" data-act="redo" title="Redo">↷</button>
+      </div>
+      <label class="row axis">
+        <span>Black →</span>
+        <input type="range" min="0" max="1" step="0.005" data-end="black" />
+        <output data-for="black"></output>
+      </label>
+      <label class="row axis">
+        <span>White →</span>
+        <input type="range" min="0" max="1" step="0.005" data-end="white" />
+        <output data-for="white"></output>
+      </label>
+      <div class="palette"></div>
+      <p class="empty" hidden>
+        No vector colors found — scanned pages are out of scope.
+      </p>
+      <footer><span class="count"></span></footer>
+    </div>
+    <script src="tint/engine.js"></script>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
