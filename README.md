@@ -1,4 +1,5 @@
-# Satin
+<div align="center"><img height="256" src="logo/satin.svg" /></div>
+<h1 align="center">Satin Reader</h1>
 
 A browser extension to manipulate the colors of a PDF in real time while reading it. Two sliders let you easily define an affine transformation on the perceptual lightness dimension of the [Oklab color space](https://en.wikipedia.org/wiki/Oklab_color_space), e.g. to achieve dark mode with better contrast and more faithful colors than simply inverting the colors would achieve. Then all unique colors in the document can be further tweaked individually if desired.
 
@@ -24,8 +25,6 @@ With Nix, `nix build` runs the same script and puts the XPI under
 `result/share/mozilla/extensions/`.
 
 ### The logo
-
-<img src="logo/satin.svg" width="256" alt="The Satin logo">
 
 The logo is `logo/satin.svg`, a folded satin ribbon. It is written by
 `logo/render.mjs`, a self-contained Node script holding a small 3D model and the
