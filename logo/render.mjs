@@ -64,7 +64,7 @@ const PARAMS = {
   "aa": "3",
   "stripA": "#2a2932",
   "stripB": "#eef2e8",
-  "ringGap": 16,
+  "ringGap": 32,
   "ringColor": "#ffffff"
 };
 
