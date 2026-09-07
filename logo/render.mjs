@@ -3,6 +3,7 @@
 //
 //   node render.mjs > satin.svg              the logo: an SVG of lines, elliptical arcs and linear gradients
 //   node render.mjs png <size> [ss] > x.png  a ray-traced rendering of the same model, for checking the SVG against
+//                                            (without the white ring, which is a wrapper applied to the SVG only)
 //
 // A satin ribbon lies along the line y = x with its lower-left half at z = -h and its upper-right half at z = +h,
 // joined by a bend whose heading follows a sine law and can overhang into a true S. An upright orthographic camera
@@ -18,7 +19,6 @@ import { deflateSync } from 'node:zlib';
 
 const PARAMS = {
   "bg": "#111111",
-  "corner": 50,
   "width": 2.6,
   "lift": 1.7,
   "bendAngle": 161,
@@ -63,7 +63,9 @@ const PARAMS = {
   "rolloff": true,
   "aa": "3",
   "stripA": "#2a2932",
-  "stripB": "#eef2e8"
+  "stripB": "#eef2e8",
+  "ringGap": 16,
+  "ringColor": "#ffffff"
 };
 
 // ======== Satin model. This block is shared verbatim by logo/lab.html and logo/render.mjs. ========
@@ -379,7 +381,7 @@ function renderSVG(P, VB = 1024, tol = 0.5) {
   const defs = [], body = [];
   const poly = (pts, off) => pts.map(p => `${f2((p[0] + off[0]) * VB)} ${f2((p[1] + off[1]) * VB)}`);
   const tr = d => `translate(${f2(d * uf[0] * VB)} ${f2(d * uf[1] * VB)})`;
-  defs.push(`<clipPath id="frame"><rect width="${VB}" height="${VB}" rx="${f2(P.corner / 100 * VB)}"/></clipPath>`);
+  defs.push(`<clipPath id="frame"><circle cx="${VB / 2}" cy="${VB / 2}" r="${VB / 2}"/></clipPath>`);
   body.push(`<rect width="${VB}" height="${VB}" fill="${P.bg}"/>`);
   let gid = 0;
   order.forEach(k => {
@@ -404,8 +406,14 @@ function renderSVG(P, VB = 1024, tol = 0.5) {
 // ======== end of the shared model ========
 
 // ---- command line ----
+// a white disc of the full radius behind the logo, which is scaled down to leave a ring of `gap` px around it
+const withRing = (svg, gap, color, VB = 1024) => {
+  if (!(gap > 0)) return svg;
+  const open = svg.indexOf('>') + 1, close = svg.lastIndexOf('</svg>'), k = (VB - 2 * gap) / VB;
+  return `${svg.slice(0, open)}\n<circle cx="${VB / 2}" cy="${VB / 2}" r="${VB / 2}" fill="${color}"/>\n<g transform="translate(${gap} ${gap}) scale(${k})">${svg.slice(open, close)}</g>\n</svg>\n`;
+};
 const args = process.argv.slice(2), P = PARAMS;
-if (args[0] !== 'png') { process.stdout.write(renderSVG(P)); process.exit(0); }
+if (args[0] !== 'png') { process.stdout.write(withRing(renderSVG(P), P.ringGap, P.ringColor)); process.exit(0); }
 const size = Math.max(1, Math.round(+args[1] || 1024)), SS = Math.max(1, Math.round(+(args[2] ?? 3)));
 const n = size * SS, R = makeRenderer(P, n, 0);
 const rgb = new Float32Array(n * n * 3), phi = new Float32Array(n * n);
@@ -414,15 +422,13 @@ for (let j = 0; j < n; j++) R.renderRow(j, null, rgb, phi, null);
 
 // ---- composite: ribbon or background inside the rounded frame, transparent outside; average in linear light ----
 const bg = hex2lin(P.bg);
-const corner = P.corner / 100;
 const px = new Uint8Array(size * size * 4);
 for (let Y = 0; Y < size; Y++) for (let X = 0; X < size; X++) {
   let r = 0, g = 0, b = 0, cov = 0;
   for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
     const i = X * SS + sx, j = Y * SS + sy;
     const nx = (i + 0.5) / n, ny = (j + 0.5) / n;
-    const qx = Math.max(Math.abs(nx - 0.5) - (0.5 - corner), 0), qy = Math.max(Math.abs(ny - 0.5) - (0.5 - corner), 0);
-    if (Math.hypot(qx, qy) - corner > 0) continue;
+    if (Math.hypot(nx - 0.5, ny - 0.5) > 0.5) continue;                       // the circular frame
     const idx = j * n + i;
     if (phi[idx] >= 0) { r += rgb[idx * 3]; g += rgb[idx * 3 + 1]; b += rgb[idx * 3 + 2]; }
     else { r += bg[0]; g += bg[1]; b += bg[2]; }
