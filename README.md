@@ -3,6 +3,8 @@
 
 A browser extension to manipulate the colors of a PDF in real time while reading it. Two sliders let you easily define an affine transformation on the perceptual lightness dimension of the [Oklab color space](https://en.wikipedia.org/wiki/Oklab_color_space), e.g. to achieve dark mode with better contrast and more faithful colors than simply inverting the colors would achieve. Then all unique colors in the document can be further tweaked individually if desired.
 
+![example](example.png)
+
 ## Building
 
 ```sh
@@ -29,7 +31,7 @@ With Nix, `nix build` runs the same script and puts the XPI under
 The logo is `logo/satin.svg`, a folded satin ribbon. It is written by
 `logo/render.mjs`, a self-contained Node script holding a small 3D model and the
 chosen parameters, and it is not a tracing or an approximation of a rendering:
-the SVG *is* the picture.
+the SVG _is_ the picture.
 
 ```sh
 nix build .#svg                        # the logo
@@ -77,7 +79,7 @@ mkdir official && unzip -q dist.zip -d official
 diff -r official built/pdfjs                    # only web/viewer.html, one line
 ```
 
-The color engine is deliberately *not* injected into `viewer.html`:
+The color engine is deliberately _not_ injected into `viewer.html`:
 `tint/viewer.js` imports it and opens the document itself, so nothing is painted
 before the canvas accessors are in place. Nor is pdf.js's `validateFileURL`
 patched out — the document URL is passed as `src` while pdf.js's own `file`
@@ -88,7 +90,7 @@ parameter is left empty, which sidesteps that check without touching its code.
 ### Chrome, Edge, Brave, Vivaldi, Opera
 
 Nothing is signed and nothing expires: open `chrome://extensions`, turn on
-*Developer mode* and choose *Load unpacked*, then pick the directory built with
+_Developer mode_ and choose _Load unpacked_, then pick the directory built with
 `UNPACKED_DIR`. Chrome 127 or newer — that is where `action.openPopup()` landed,
 which the toolbar button needs.
 
@@ -98,13 +100,13 @@ Satin is not published on addons.mozilla.org, so the XPI you build is unsigned,
 and that decides which of these you want.
 
 **Just trying it** — works on any Firefox, lasts until you quit. Open
-`about:debugging#/runtime/this-firefox`, choose *Load Temporary Add-on…* and
+`about:debugging#/runtime/this-firefox`, choose _Load Temporary Add-on…_ and
 pick `satin.xpi`.
 
 **Keeping it** — needs a Firefox that lets you turn signature enforcement off,
 which means ESR, Developer Edition or Nightly. Set
 `xpinstall.signatures.required` to `false` in `about:config`, then install the
-XPI from `about:addons` → the gear menu → *Install Add-on From File…*. Release
+XPI from `about:addons` → the gear menu → _Install Add-on From File…_. Release
 and Beta builds ignore that setting, because they are compiled with
 `MOZ_REQUIRE_SIGNING`; they will delete an unsigned add-on from the profile
 rather than merely disable it.
