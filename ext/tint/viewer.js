@@ -227,6 +227,59 @@ async function ready() {
   await getApp()?.initializedPromise?.catch(() => {});
 }
 
+/* Local files are a platform split. Chrome grants an extension file:// access
+   once the user ticks "Allow access to file URLs" on its details page, and then
+   the open below simply works. Firefox has no such switch and refuses from
+   every context — fetch, XMLHttpRequest, page or background, even with
+   file:///* granted — so there the only way in is the user handing the file
+   over, which the picker and drag-and-drop both do. */
+const sourceIsLocal = sourceUrl.startsWith("file:");
+
+async function fileAccessBlockedByToggle() {
+  /* Firefox implements isAllowedFileSchemeAccess() too, and always answers
+     false, because it has no such setting to report on — so a bare false would
+     send Firefox users to chrome://extensions looking for a switch that is not
+     there. getBrowserInfo exists only on Firefox and settles it first. */
+  if (globalThis.browser?.runtime?.getBrowserInfo) return false;
+  try {
+    return (await chrome.extension.isAllowedFileSchemeAccess()) === false;
+  } catch {
+    return false;
+  }
+}
+
+/* Without this the failure is silent: opening a file:// URL rejects in
+   milliseconds and pdf.js shows nothing, leaving an empty viewer and no clue. */
+async function promptForLocalFile() {
+  const name = decodeURIComponent(sourceUrl).split("/").pop();
+  const needsToggle = await fileAccessBlockedByToggle();
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = `Open ${name}…`;
+  button.addEventListener("click", () => {
+    // Must happen inside the click: the picker needs a user gesture.
+    document.getElementById("fileInput")?.click();
+  });
+
+  const prompt = document.createElement("div");
+  prompt.id = "satinLocalPrompt";
+  prompt.append(
+    Object.assign(document.createElement("p"), {
+      textContent: needsToggle
+        ? `Satin needs permission to read local files. Turn on "Allow access to ` +
+          `file URLs" on its details page under chrome://extensions, then open ` +
+          `${name} again — it will tint straight away from then on.`
+        : `This browser does not let extensions read local files, so Satin ` +
+          `cannot open ${name} by itself. Choose it below, or drag it onto this ` +
+          `page, and everything else works as usual.`,
+    }),
+    button
+  );
+  document.body.append(prompt);
+  getApp()?.eventBus?.on("documentloaded", () => prompt.remove());
+}
+
 async function boot() {
   if (sourceUrl) {
     try {
@@ -255,8 +308,11 @@ async function boot() {
     try {
       await getApp()?.open({ url: sourceUrl });
     } catch {
-      /* pdf.js has already shown its own error for an unreachable or
-         unparseable document; there is nothing useful to add. */
+      /* A local file that this browser will not let us read is the one failure
+         worth explaining, because it is the browser's rule rather than anything
+         wrong with the document, and there is a way through it. Everything else
+         pdf.js has already reported. */
+      if (sourceIsLocal) await promptForLocalFile();
     }
   }
 

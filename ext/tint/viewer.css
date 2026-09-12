@@ -3,3 +3,43 @@
 .pdfViewer .page {
   background-color: var(--satin-page-bg, #fff);
 }
+
+/* Shown only when the browser refuses to let the extension read a local file;
+   see promptForLocalFile in viewer.js. */
+#satinLocalPrompt {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 100000;
+  max-width: 26em;
+  padding: 16px 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #5a5a5a;
+  border-radius: 10px;
+  background: #232323f2;
+  color: #ececec;
+  font: 13px/1.5 system-ui, sans-serif;
+  box-shadow: 0 8px 28px #0009;
+}
+
+#satinLocalPrompt p {
+  margin: 0 0 12px;
+}
+
+#satinLocalPrompt button {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid #6b6b6b;
+  border-radius: 6px;
+  background: #333;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Guarded like the popup's: a touch device leaves hover stuck on after a tap. */
+@media (hover: hover) {
+  #satinLocalPrompt button:hover {
+    background: #414141;
+  }
+}

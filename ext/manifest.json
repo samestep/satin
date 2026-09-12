@@ -14,7 +14,7 @@
   },
   "minimum_chrome_version": "127",
   "permissions": ["storage", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": ["<all_urls>", "file://*/*"],
   "action": {
     "default_title": "Satin",
     "default_icon": {
