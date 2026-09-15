@@ -29,6 +29,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ext_dir=${EXT_DIR:-$here/ext}
 patch_file=${PATCH:-$here/pdfjs-viewer-html.patch}
 out=${1:-$here/satin.xpi}
+case $out in /*) ;; *) out=$PWD/$out ;; esac   # zip runs inside the work dir, so the target must be absolute
 version=${VERSION:-0.0.0}
 pdfjs_version=6.2.108
 # Firefox refuses pre-1980 timestamps in a zip, and a fixed one keeps the
@@ -68,9 +69,17 @@ printf '%s\n' "${content//$placeholder/\"version\": \"$version\"}" >"$manifest"
 patch -p1 -d "$work/pdfjs" --fuzz=0 --no-backup-if-mismatch <"$patch_file"
 
 
-find "$work" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+# The same instant as an ISO 8601 UTC string: BSD touch (macOS) does not take
+# "@epoch", but both it and GNU touch take this form. GNU date spells the
+# conversion -d, BSD date -r.
+stamp=$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+  || date -u -r "$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ)
+find "$work" -type d -exec chmod 755 {} + ; find "$work" -type f -exec chmod 644 {} +   # not the checkout's umask
+find "$work" -exec touch -h -d "$stamp" {} +
 rm -f "$out"
-(cd "$work" && zip -q -r -X -D -9 "$out" .)
+# A sorted file list rather than -r: directory order differs between
+# filesystems, and this keeps the archive byte-identical across platforms too.
+(cd "$work" && find . -type f | LC_ALL=C sort | zip -q -X -D -9 "$out" -@)
 
 if [ -n "${UNPACKED_DIR:-}" ]; then
   rm -rf "$UNPACKED_DIR"

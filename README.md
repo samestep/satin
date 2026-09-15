@@ -20,7 +20,8 @@ so the `.xpi` is a plain zip that also loads in Chrome, Edge, Brave, Vivaldi and
 Opera. Chrome's "Load unpacked" wants a directory rather than an archive, which
 is what `UNPACKED_DIR` is for.
 
-Needs only `bash`, `curl`, `unzip`, `zip` and `patch`. The script downloads the
+Needs only `bash`, `curl`, `unzip`, `zip` and `patch`; the versions macOS ships
+are fine, as are the GNU ones, and both produce the same bytes. The script downloads the
 prebuilt [pdf.js](https://mozilla.github.io/pdf.js/) viewer, applies
 `pdfjs-viewer-html.patch` to it and zips the result, so there is no npm build.
 With Nix, `nix build` runs the same script and puts the XPI under
