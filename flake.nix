@@ -35,7 +35,7 @@
         # The extension as a directory, which Chrome's "Load unpacked" takes: src/, icons rasterized from
         # the logo, and the pdf.js distribution with one line of web/viewer.html changed (see pdfjs.patch;
         # --fuzz=0 so that a pdf.js upgrade which moves the anchor fails the build rather than shipping a
-        # viewer with the tint code silently dropped).
+        # viewer with Satin silently dropped).
         unpacked = pkgs.runCommand "satin-unpacked" { nativeBuildInputs = [ pkgs.resvg ]; } ''
           cp -r --no-preserve=mode ${./src} "$out"
           cp -r --no-preserve=mode ${pdfjs} "$out/pdfjs"

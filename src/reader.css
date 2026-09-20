@@ -5,7 +5,7 @@
 }
 
 /* Shown only when the browser refuses to let the extension read a local file;
-   see promptForLocalFile in viewer.js. */
+   see promptForLocalFile in reader.js. */
 #satinLocalPrompt {
   position: fixed;
   top: 50%;

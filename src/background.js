@@ -26,7 +26,7 @@ globalThis.browser ??= globalThis.chrome;
  * from wherever the user found it. An empty `file` short-circuits that check
  * (it returns early on a falsy value) and also skips pdf.js's auto-open (`if
  * (file)`), which would otherwise load the sample PDF bundled in the dist.
- * viewer.js then opens `src` itself. The alternative was patching the guard out
+ * reader.js then opens `src` itself. The alternative was patching the guard out
  * of pdf.js's minified bundle, which is both worse to review and worse to trust.
  */
 const VIEWER = "pdfjs/web/viewer.html";

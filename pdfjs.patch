@@ -4,8 +4,8 @@
      <link rel="stylesheet" href="viewer.css" />
 
    <script src="viewer.mjs" type="module"></script>
-+  <link rel="stylesheet" href="../../tint/viewer.css" />
-+  <script src="../../tint/viewer.js" type="module"></script>
++  <link rel="stylesheet" href="../../reader.css" />
++  <script src="../../reader.js" type="module"></script>
    </head>
 
    <body tabindex="0">

@@ -8,7 +8,7 @@
    accessors were in place escaped untinted. That is no longer necessary — this
    module opens the document itself (see boot), so nothing can be painted until
    after this import has run. */
-import "./engine.js";
+import "./colors.js";
 import * as pdfjsLib from "../pdfjs/build/pdf.mjs";
 
 // See background.js: Chrome names the namespace `chrome`. Guarded rather than
