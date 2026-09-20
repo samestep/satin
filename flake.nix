@@ -28,9 +28,9 @@
     in
     {
       packages = forAllSystems (pkgs: rec {
-        # The logo, as an SVG (see logo/render.mjs).
+        # The logo, as an SVG (see icon.mjs).
         icon = pkgs.runCommand "satin.svg" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-          node ${./logo/render.mjs} > "$out"
+          node ${./icon.mjs} > "$out"
         '';
         # The extension as a directory, which Chrome's "Load unpacked" takes: src/, icons rasterized from
         # the logo, and the pdf.js distribution with one line of web/viewer.html changed (see pdfjs.patch;
@@ -75,9 +75,9 @@
         in
         {
           build = default;
-          # The checked-in logo must be what logo/render.mjs produces.
+          # The checked-in logo must be what icon.mjs produces.
           icon = pkgs.runCommand "satin-icon-check" { } ''
-            diff ${./logo/satin.svg} ${icon}
+            diff ${./icon.svg} ${icon}
             touch "$out"
           '';
           # treefmt's own check: copies the tree, runs the formatter, fails on any diff.

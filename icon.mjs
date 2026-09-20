@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // The Satin logo.
 //
-//   node render.mjs > satin.svg              the logo: an SVG of lines, elliptical arcs and linear gradients
-//   node render.mjs png <size> [ss] > x.png  a ray-traced rendering of the same model, for checking the SVG against
+//   node icon.mjs > icon.svg                 the logo: an SVG of lines, elliptical arcs and linear gradients
+//   node icon.mjs png <size> [ss] > x.png    a ray-traced rendering of the same model, for checking the SVG against
 //                                            (without the white ring, which is a wrapper applied to the SVG only)
 //
 // A satin ribbon lies along the line y = x with its lower-left half at z = -h and its upper-right half at z = +h,
@@ -13,8 +13,8 @@
 // strips filled with linear gradients, which is what renderSVG below writes: the SVG is the logo, and the PNGs are
 // rasterizations of it. The ray tracer is kept only to check that claim.
 //
-// PARAMS is the settled design. The model code between the markers is shared verbatim with logo/lab.html, the
-// interactive tool used to design it.
+// PARAMS is the settled design. The model code between the markers is shared verbatim with the
+// interactive design tool used to design it.
 import { deflateSync } from 'node:zlib';
 
 const PARAMS = {
@@ -68,7 +68,7 @@ const PARAMS = {
   "ringColor": "#ffffff"
 };
 
-// ======== Satin model. This block is shared verbatim by logo/lab.html and logo/render.mjs. ========
+// ======== Satin model. This block is shared verbatim by the design tool and icon.mjs. ========
 const D2R = Math.PI / 180, R2 = Math.SQRT1_2;
 
 // ---------- color helpers ----------
