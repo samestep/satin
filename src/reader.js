@@ -214,6 +214,9 @@ if (typeof browser !== "undefined" && browser.runtime?.onMessage) {
     sendResponse(handle(message));
     return undefined;
   });
+  // Tell the background this tab now holds the viewer, so it attaches the
+  // popup; see background.js for why it cannot tell from the tab's URL.
+  browser.runtime.sendMessage({ type: "satin-viewer" })?.catch?.(() => {});
 }
 
 // ---------- boot ----------

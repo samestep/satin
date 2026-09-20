@@ -13,7 +13,7 @@
     }
   },
   "minimum_chrome_version": "127",
-  "permissions": ["storage", "tabs"],
+  "permissions": ["storage"],
   "host_permissions": ["<all_urls>", "file://*/*"],
   "action": {
     "default_title": "Satin",

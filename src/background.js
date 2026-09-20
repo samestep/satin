@@ -37,29 +37,56 @@ const isViewer = (url) => typeof url === "string" && url.startsWith(viewerUrl);
 const viewerFor = (src) =>
   `${viewerUrl}?file=${src ? `&src=${encodeURIComponent(src)}` : ""}`;
 
-function syncAction(tabId, url) {
-  return browser.action
-    .setPopup({ tabId, popup: isViewer(url) ? "popup.html" : null })
+/* Which tabs hold the viewer is asked of the runtime, not read off tab URLs:
+ * runtime.getContexts lists this extension's own documents by tab, whereas tab
+ * URLs would need the "tabs" permission (Chrome hides even an extension's own
+ * chrome-extension:// tab URLs without it), and "tabs" costs a "Read your
+ * browsing history" warning at install time for nothing else.
+ */
+const setPopup = (tabId, on) =>
+  browser.action
+    .setPopup({ tabId, popup: on ? "popup.html" : "" })
     .catch(() => {});
-}
 
-browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.url || changeInfo.status) syncAction(tabId, tab.url);
+// The viewer is the only page of ours that runs in a tab.
+const holdsViewer = (tabId) =>
+  browser.runtime
+    .getContexts({ contextTypes: ["TAB"], tabIds: [tabId] })
+    .then((contexts) => contexts.length > 0)
+    .catch(() => false);
+
+const sync = async (tabId) => setPopup(tabId, await holdsViewer(tabId));
+
+// Recomputed, not toggled, on both edges of a navigation: at "loading" the old
+// document is still there and at "complete" the new one is. pdf.js also drives
+// the history API as the document loads, which Chrome reports as another
+// loading/complete pair on the same document.
+browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status) sync(tabId);
 });
 
-// Tabs restored at startup never fire onUpdated, so claim them here.
-browser.tabs
-  .query({})
-  .then((tabs) => tabs.forEach((tab) => syncAction(tab.id, tab.url)))
+// The viewer also announces itself as it starts, so the popup is in place
+// before "complete" and the first click is never a dud.
+browser.runtime.onMessage.addListener((message, sender) => {
+  if (message?.type === "satin-viewer" && sender.tab) {
+    setPopup(sender.tab.id, true);
+  }
+});
+
+// Viewers already open when this script starts (session restore, reload).
+browser.runtime
+  .getContexts({ contextTypes: ["TAB"] })
+  .then((contexts) => contexts.forEach((c) => setPopup(c.tabId, true)))
   .catch(() => {});
 
 browser.action.onClicked.addListener(async (tab) => {
   const url = tab.url || "";
 
   if (isViewer(url)) {
-    // Only reachable before the per-tab popup has been applied; wire it up and
-    // show it, so the first click is never a dud.
-    await syncAction(tab.id, url);
+    // Only reachable in the moment between a viewer starting to load and its
+    // message arriving, and only on Firefox, which shows us the URL. Wire the
+    // popup up and show it, so the click is not a dud.
+    await setPopup(tab.id, true);
     // Chrome 127+ and Firefox both have this, but it can reject *or* throw
     // synchronously when there is no window to anchor to; a dud click is a far
     // better outcome than an exception out of the listener.
