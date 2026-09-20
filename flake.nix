@@ -26,6 +26,7 @@
       formatter = forAllSystems (system: pkgs: pkgs.nixfmt-tree);
       checks = forAllSystems (
         system: pkgs: {
+          build = self.packages.${system}.default;
           format = self.formatter.${system}.check self;
         }
       );
