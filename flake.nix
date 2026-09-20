@@ -21,7 +21,7 @@
         "aarch64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
-      addonId = "satin@sam.local";
+      addonId = "satin@samestep.com";
       # Firefox's own extension collection ID: Home Manager's Firefox module looks for XPIs under
       # this path, named by add-on ID, and needs `addonId` in passthru.
       extensionPath = "share/mozilla/extensions/{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
