@@ -1,8 +1,8 @@
 Load Satin's viewer controller and its stylesheet.
 
 This is the only change Satin makes to the pdf.js distribution; every other
-file is byte-identical to the official release (pdfjs-6.2.108-dist.zip from
-https://github.com/mozilla/pdf.js/releases/tag/v6.2.108).
+file is byte-identical to the official release (pdfjs-6.3.289-dist.zip from
+https://github.com/mozilla/pdf.js/releases/tag/v6.3.289).
 
 The tags go after viewer.mjs because that module publishes
 window.PDFViewerApplication as its body runs, and the controller needs it. The

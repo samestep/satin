@@ -31,7 +31,7 @@ patch_file=${PATCH:-$here/pdfjs-viewer-html.patch}
 out=${1:-$here/satin.xpi}
 case $out in /*) ;; *) out=$PWD/$out ;; esac   # zip runs inside the work dir, so the target must be absolute
 version=${VERSION:-0.0.0}
-pdfjs_version=6.2.108
+pdfjs_version=6.3.289
 # Firefox refuses pre-1980 timestamps in a zip, and a fixed one keeps the
 # archive byte-identical across builds.
 : "${SOURCE_DATE_EPOCH:=315532800}"

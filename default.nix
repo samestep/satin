@@ -18,11 +18,11 @@ let
   # for XPIs under this path and names them by add-on ID.
   extensionPath = "extensions/{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
 
-  pdfjsVersion = "6.2.108";
+  pdfjsVersion = "6.3.289";
   # The prebuilt viewer distribution, so there is no npm/gulp build to package.
   pdfjs = fetchurl {
     url = "https://github.com/mozilla/pdf.js/releases/download/v${pdfjsVersion}/pdfjs-${pdfjsVersion}-dist.zip";
-    hash = "sha256-e/ZC1ZWCtHXoxIRH2psCsBCPrZdC18KjXLTtbdRelbo=";
+    hash = "sha256-mMWDL/569O3VmFNHakeMDU1Ndt1JwXAfTIb3GCclzfk=";
   };
 in
 stdenvNoCC.mkDerivation {
