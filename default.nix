@@ -43,7 +43,7 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
     EXT_DIR="$PWD" PDFJS_ZIP=${pdfjs} VERSION=${version} \
-      PATCH=${./pdfjs-viewer-html.patch} \
+      PATCH=${./pdfjs.patch} \
       bash ${./build.sh} "$PWD/satin.xpi"
     runHook postBuild
   '';

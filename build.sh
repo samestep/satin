@@ -27,7 +27,7 @@ set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ext_dir=${EXT_DIR:-$here/ext}
-patch_file=${PATCH:-$here/pdfjs-viewer-html.patch}
+patch_file=${PATCH:-$here/pdfjs.patch}
 out=${1:-$here/satin.xpi}
 case $out in /*) ;; *) out=$PWD/$out ;; esac   # zip runs inside the work dir, so the target must be absolute
 version=${VERSION:-0.0.0}
