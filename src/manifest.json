@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Satin",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Recolor PDFs live: read the document's real palette and remap any color, with an Oklab lightness inversion for dark reading.",
   "browser_specific_settings": {
     "gecko": {

@@ -16,9 +16,23 @@
         "type": "github"
       }
     },
+    "pdfjs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788014132,
+        "narHash": "sha256-v8LoUEOgG8t1Al4vpKrXZ3D4HEDXd4bqRUFqUbN63qk=",
+        "type": "tarball",
+        "url": "https://github.com/mozilla/pdf.js/releases/download/v6.3.289/pdfjs-6.3.289-dist.zip"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/mozilla/pdf.js/releases/download/v6.3.289/pdfjs-6.3.289-dist.zip"
+      }
+    },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "pdfjs": "pdfjs"
       }
     }
   },
