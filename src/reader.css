@@ -4,42 +4,68 @@
   background-color: var(--satin-page-bg, #fff);
 }
 
-/* Shown only when the browser refuses to let the extension read a local file;
-   see promptForLocalFile in reader.js. */
-#satinLocalPrompt {
-  position: fixed;
-  top: 50%;
-  left: 50%;
+/* The screen for a viewer with nothing to show; see showEmptyState in
+   reader.js. Absolutely positioned inside #viewerContainer, which pdf.js already
+   positions, so it covers the page area and leaves the toolbar usable. Colors
+   follow pdf.js's own theme variables, so it matches the viewer around it. */
+#satinEmpty {
+  position: absolute;
+  inset: 0;
   z-index: 100000;
-  max-width: 26em;
-  padding: 16px 18px;
-  transform: translate(-50%, -50%);
-  border: 1px solid #5a5a5a;
-  border-radius: 10px;
-  background: #232323f2;
-  color: #ececec;
-  font: 13px/1.5 system-ui, sans-serif;
-  box-shadow: 0 8px 28px #0009;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--body-bg-color, #2a2a2e);
+  color: var(--main-color, #f9f9fa);
+  font: 15px/1.5 system-ui, sans-serif;
+  text-align: center;
 }
 
-#satinLocalPrompt p {
-  margin: 0 0 12px;
+#satinEmpty img {
+  width: 96px;
+  height: 96px;
 }
 
-#satinLocalPrompt button {
-  min-height: 44px;
-  padding: 6px 12px;
-  border: 1px solid #6b6b6b;
-  border-radius: 6px;
-  background: #333;
-  color: inherit;
+#satinEmpty h1 {
+  margin: 8px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+#satinEmpty p {
+  max-width: 34em;
+  margin: 0;
+}
+
+#satinEmpty .hint {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+#satinEmpty button {
   font: inherit;
+  color: inherit;
   cursor: pointer;
 }
 
-/* Guarded like the popup's: a touch device leaves hover stuck on after a tap. */
-@media (hover: hover) {
-  #satinLocalPrompt button:hover {
-    background: #414141;
-  }
+#satinEmpty .open {
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 10px 26px;
+  border: 1px solid var(--field-border-color, #8f8f9d);
+  border-radius: 8px;
+  background: var(--button-hover-color, #4a4a4f);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+#satinEmpty .back {
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  opacity: 0.8;
 }

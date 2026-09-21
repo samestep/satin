@@ -240,13 +240,10 @@ async function ready() {
    file:///* granted — so there the only way in is the user handing the file
    over, which the picker and drag-and-drop both do. */
 const sourceIsLocal = sourceUrl.startsWith("file:");
+// getBrowserInfo exists only on Firefox.
+const isFirefox = !!globalThis.browser?.runtime?.getBrowserInfo;
 
-async function fileAccessBlockedByToggle() {
-  /* Firefox implements isAllowedFileSchemeAccess() too, and always answers
-     false, because it has no such setting to report on — so a bare false would
-     send Firefox users to chrome://extensions looking for a switch that is not
-     there. getBrowserInfo exists only on Firefox and settles it first. */
-  if (globalThis.browser?.runtime?.getBrowserInfo) return false;
+async function chromeFileAccessOff() {
   try {
     return (await chrome.extension.isAllowedFileSchemeAccess()) === false;
   } catch {
@@ -254,36 +251,80 @@ async function fileAccessBlockedByToggle() {
   }
 }
 
-/* Without this the failure is silent: opening a file:// URL rejects in
-   milliseconds and pdf.js shows nothing, leaving an empty viewer and no clue. */
-async function promptForLocalFile() {
-  const name = decodeURIComponent(sourceUrl).split("/").pop();
-  const needsToggle = await fileAccessBlockedByToggle();
+/* What went wrong, in the user's terms, for each way of arriving with nothing
+   to show. `back` offers a way out of a page that was never a PDF. */
+function describe(kind, name) {
+  switch (kind) {
+    case "local-firefox":
+      return {
+        title: `Open ${name}`,
+        body:
+          "Firefox does not let extensions read local files, so Satin cannot " +
+          "open it by itself. Choose it below, or drop it onto this page.",
+      };
+    case "local-chrome":
+      return {
+        title: `Open ${name}`,
+        body:
+          'Satin needs permission to read local files. Turn on "Allow access ' +
+          'to file URLs" on its details page under chrome://extensions, and ' +
+          `${name} will open straight away from then on. Or choose it below.`,
+      };
+    case "local-failed":
+      return {
+        title: `Could not read ${name}`,
+        body: "Choose it below, or drop it onto this page.",
+      };
+    case "not-pdf":
+      return {
+        title: "That page is not a PDF",
+        body: "Satin tried to read it as one and could not. Go back, or open a PDF instead.",
+        back: true,
+      };
+    case "unreachable":
+      return {
+        title: "The document could not be fetched",
+        body: "Go back and try again, or open a PDF from this computer instead.",
+        back: true,
+      };
+    default:
+      return { title: "Open a PDF", body: "Choose a file to read it here." };
+  }
+}
 
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = `Open ${name}…`;
-  button.addEventListener("click", () => {
+/* Everything that leaves the viewer with nothing to show ends up here: a screen
+   that says what happened and offers the two ways to a document. The picker is
+   pdf.js's own hidden file input, the one its toolbar "Open" button clicks, and
+   dropping a file anywhere on the page is handled by pdf.js already. The screen
+   lives inside the viewer container so that drops on it still reach that
+   listener, and it goes away when a document loads. */
+function showEmptyState(kind) {
+  const name = decodeURIComponent(sourceUrl).split("/").pop();
+  const { title, body, back } = describe(kind, name);
+  const make = (tag, props, text) =>
+    Object.assign(document.createElement(tag), props, text && { textContent: text });
+
+  const open = make("button", { type: "button", className: "open" }, "Open PDF…");
+  open.addEventListener("click", () => {
     // Must happen inside the click: the picker needs a user gesture.
     document.getElementById("fileInput")?.click();
   });
 
-  const prompt = document.createElement("div");
-  prompt.id = "satinLocalPrompt";
-  prompt.append(
-    Object.assign(document.createElement("p"), {
-      textContent: needsToggle
-        ? `Satin needs permission to read local files. Turn on "Allow access to ` +
-          `file URLs" on its details page under chrome://extensions, then open ` +
-          `${name} again — it will tint straight away from then on.`
-        : `This browser does not let extensions read local files, so Satin ` +
-          `cannot open ${name} by itself. Choose it below, or drag it onto this ` +
-          `page, and everything else works as usual.`,
-    }),
-    button
+  const screen = make("section", { id: "satinEmpty" });
+  screen.append(
+    make("img", { src: "../../icon-128.png", alt: "" }),
+    make("h1", {}, title),
+    make("p", {}, body),
+    open,
+    make("p", { className: "hint" }, "…or drop a PDF anywhere on this page.")
   );
-  document.body.append(prompt);
-  getApp()?.eventBus?.on("documentloaded", () => prompt.remove());
+  if (back && history.length > 1) {
+    const button = make("button", { type: "button", className: "back" }, "Go back");
+    button.addEventListener("click", () => history.back());
+    screen.append(button);
+  }
+  (document.getElementById("viewerContainer") ?? document.body).append(screen);
+  getApp()?.eventBus?.on("documentloaded", () => screen.remove());
 }
 
 async function boot() {
@@ -310,15 +351,26 @@ async function boot() {
   /* Opened here rather than by pdf.js, so that the URL never passes through
      validateFileURL. Listeners are attached first: open() resolves after
      "documentloaded" has already fired. */
-  if (sourceUrl) {
+  if (!sourceUrl) {
+    showEmptyState("none");
+  } else {
     try {
       await getApp()?.open({ url: sourceUrl });
-    } catch {
-      /* A local file that this browser will not let us read is the one failure
-         worth explaining, because it is the browser's rule rather than anything
-         wrong with the document, and there is a way through it. Everything else
-         pdf.js has already reported. */
-      if (sourceIsLocal) await promptForLocalFile();
+    } catch (error) {
+      /* pdf.js has logged the failure; this says it where the user is looking.
+         A local file the browser will not let us read comes first, because
+         that is the browser's rule rather than anything wrong with the file. */
+      showEmptyState(
+        sourceIsLocal
+          ? isFirefox
+            ? "local-firefox"
+            : (await chromeFileAccessOff())
+              ? "local-chrome"
+              : "local-failed"
+          : error instanceof pdfjsLib.InvalidPDFException
+            ? "not-pdf"
+            : "unreachable"
+      );
     }
   }
 
