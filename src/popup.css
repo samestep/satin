@@ -39,6 +39,12 @@ body {
   color: var(--muted);
 }
 
+/* The display rules below would otherwise beat the hidden attribute's own
+   display: none, since author styles win over the browser's. */
+[hidden] {
+  display: none !important;
+}
+
 #ui,
 #notPdf {
   display: flex;
@@ -164,10 +170,6 @@ button:disabled {
   flex-direction: column;
   gap: 2px;
   margin: 2px 0 6px 24px;
-}
-
-.editor[hidden] {
-  display: none;
 }
 
 .oklch {
