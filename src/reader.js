@@ -19,7 +19,10 @@ globalThis.browser ??= globalThis.chrome;
 const engine = window.Satin;
 const getApp = () => window.PDFViewerApplication;
 
-const DEFAULT_STATE = { black: 0, white: 1, overrides: {} };
+/* Dark by default: the document's black goes to 90% lightness and its white to
+   20%, which is the reading setting in practice. Only new documents see this;
+   one that has been opened before keeps whatever was saved for it. */
+const DEFAULT_STATE = { black: 0.9, white: 0.2, overrides: {} };
 
 let state = structuredClone(DEFAULT_STATE);
 let history = [JSON.stringify(state)];
