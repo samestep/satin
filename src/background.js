@@ -65,11 +65,24 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status) sync(tabId);
 });
 
+/* Tabs that a click on the button sent to the viewer. When the viewer in one
+ * of them reports ready, the panel is opened for it, so the one click both
+ * switches to Satin and shows the controls. Firefox let an extension open its
+ * own popup without a user gesture starting in 149, hence strict_min_version.
+ */
+const panelPending = new Set();
+browser.tabs.onRemoved.addListener((tabId) => panelPending.delete(tabId));
+
 // The viewer also announces itself as it starts, so the popup is in place
 // before "complete" and the first click is never a dud.
-browser.runtime.onMessage.addListener((message, sender) => {
+browser.runtime.onMessage.addListener(async (message, sender) => {
   if (message?.type === "satin-viewer" && sender.tab) {
-    setPopup(sender.tab.id, true);
+    await setPopup(sender.tab.id, true);
+    if (panelPending.delete(sender.tab.id) && sender.tab.active) {
+      try {
+        await browser.action.openPopup({ windowId: sender.tab.windowId });
+      } catch {}
+    }
   }
 });
 
@@ -79,7 +92,7 @@ browser.runtime
   .then((contexts) => contexts.forEach((c) => setPopup(c.tabId, true)))
   .catch(() => {});
 
-browser.action.onClicked.addListener(async (tab) => {
+async function onClicked(tab) {
   const url = tab.url || "";
 
   if (isViewer(url)) {
@@ -97,6 +110,7 @@ browser.action.onClicked.addListener(async (tab) => {
   }
 
   if (/^(https?|file):/.test(url)) {
+    panelPending.add(tab.id);
     await browser.tabs.update(tab.id, { url: viewerFor(url) });
   } else {
     // Nothing openable in this tab (about:, moz-extension:, …) — start empty so
@@ -104,4 +118,6 @@ browser.action.onClicked.addListener(async (tab) => {
     // `file=`, pdf.js falls back to its bundled sample document.
     await browser.tabs.create({ url: viewerFor(null) });
   }
-});
+}
+
+browser.action.onClicked.addListener(onClicked);
