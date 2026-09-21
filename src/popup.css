@@ -39,10 +39,16 @@ body {
   color: var(--muted);
 }
 
-#ui {
+#ui,
+#notPdf {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+#notPdf p {
+  margin: 0;
+  padding: 6px 4px 0;
 }
 
 .row {

@@ -7,6 +7,7 @@ const engine = window.Satin; // loaded for its Oklch helpers only
 const $ = (sel) => document.querySelector(sel);
 
 let tabId = null;
+let tabUrl = "";
 let poll = null;
 
 async function send(cmd, args) {
@@ -165,12 +166,28 @@ document.addEventListener("change", (event) => {
   if (event.target.dataset.end || event.target.dataset.axis) refresh("commit");
 });
 
+/* The not-a-PDF offers go through the background, which owns the viewer URL
+   and opens the panel once the viewer is up. Awaited before closing: the
+   message must leave before this document goes away with it. */
+async function tell(message) {
+  try {
+    await browser.runtime.sendMessage(message);
+  } catch {
+    /* no reply is expected */
+  }
+  window.close();
+}
+
 document.addEventListener("click", (event) => {
   const { act, key } = event.target.dataset ?? {};
   if (!act) return;
   if (act === "edit") {
     const row = rows.get(key);
     if (row) row.editor.hidden = !row.editor.hidden;
+  } else if (act === "open-here") {
+    tell({ type: "satin-open", tabId, src: tabUrl });
+  } else if (act === "open-file") {
+    tell({ type: "satin-open-file" });
   } else {
     refresh(act, { key });
   }
@@ -181,6 +198,13 @@ document.addEventListener("click", (event) => {
 (async function boot() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id ?? null;
+  tabUrl = tab?.url ?? "";
+  // Set as this tab's popup by the background when the button was clicked on
+  // something other than a PDF; the controls would have nothing to talk to.
+  if (location.hash === "#not-pdf") {
+    $("#notPdf").hidden = false;
+    return;
+  }
   await refresh();
   // The viewer may still be loading, and its palette is still being scanned, so
   // keep pulling until both settle.

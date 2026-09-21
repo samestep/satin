@@ -43,10 +43,13 @@ const viewerFor = (src) =>
  * chrome-extension:// tab URLs without it), and "tabs" costs a "Read your
  * browsing history" warning at install time for nothing else.
  */
-const setPopup = (tabId, on) =>
-  browser.action
-    .setPopup({ tabId, popup: on ? "popup.html" : "" })
-    .catch(() => {});
+const PANEL = "popup.html";
+// The same page in its other mode: what the button offers on a tab that is not
+// showing a PDF (see popup.js).
+const NOT_PDF = "popup.html#not-pdf";
+
+const setPopup = (tabId, popup) =>
+  browser.action.setPopup({ tabId, popup }).catch(() => {});
 
 // The viewer is the only page of ours that runs in a tab.
 const holdsViewer = (tabId) =>
@@ -55,7 +58,8 @@ const holdsViewer = (tabId) =>
     .then((contexts) => contexts.length > 0)
     .catch(() => false);
 
-const sync = async (tabId) => setPopup(tabId, await holdsViewer(tabId));
+const sync = async (tabId) =>
+  setPopup(tabId, (await holdsViewer(tabId)) ? PANEL : "");
 
 // Recomputed, not toggled, on both edges of a navigation: at "loading" the old
 // document is still there and at "complete" the new one is. pdf.js also drives
@@ -77,20 +81,46 @@ browser.tabs.onRemoved.addListener((tabId) => panelPending.delete(tabId));
 // before "complete" and the first click is never a dud.
 browser.runtime.onMessage.addListener(async (message, sender) => {
   if (message?.type === "satin-viewer" && sender.tab) {
-    await setPopup(sender.tab.id, true);
+    await setPopup(sender.tab.id, PANEL);
     if (panelPending.delete(sender.tab.id) && sender.tab.active) {
       try {
         await browser.action.openPopup({ windowId: sender.tab.windowId });
       } catch {}
     }
   }
+  // The two offers on the not-a-PDF popup.
+  if (message?.type === "satin-open") {
+    panelPending.add(message.tabId);
+    browser.tabs.update(message.tabId, { url: viewerFor(message.src) });
+  }
+  if (message?.type === "satin-open-file") {
+    browser.tabs.create({ url: viewerFor(null) });
+  }
 });
 
 // Viewers already open when this script starts (session restore, reload).
 browser.runtime
   .getContexts({ contextTypes: ["TAB"] })
-  .then((contexts) => contexts.forEach((c) => setPopup(c.tabId, true)))
+  .then((contexts) => contexts.forEach((c) => setPopup(c.tabId, PANEL)))
   .catch(() => {});
+
+/* Whether the tab is showing something other than a PDF, judged by the
+ * document's MIME type, which a one-line script reads. The script cannot run in
+ * either browser's built-in PDF viewer, nor on restricted pages, so a failure
+ * to run it means "possibly a PDF" and the click proceeds as usual: the viewer
+ * is where a wrong guess gets explained.
+ */
+async function isNotPdf(tabId) {
+  try {
+    const [{ result }] = await browser.scripting.executeScript({
+      target: { tabId },
+      func: () => document.contentType,
+    });
+    return typeof result === "string" && !/pdf/i.test(result);
+  } catch {
+    return false;
+  }
+}
 
 async function onClicked(tab) {
   const url = tab.url || "";
@@ -99,7 +129,7 @@ async function onClicked(tab) {
     // Only reachable in the moment between a viewer starting to load and its
     // message arriving, and only on Firefox, which shows us the URL. Wire the
     // popup up and show it, so the click is not a dud.
-    await setPopup(tab.id, true);
+    await setPopup(tab.id, PANEL);
     // Chrome 127+ and Firefox both have this, but it can reject *or* throw
     // synchronously when there is no window to anchor to; a dud click is a far
     // better outcome than an exception out of the listener.
@@ -110,6 +140,15 @@ async function onClicked(tab) {
   }
 
   if (/^(https?|file):/.test(url)) {
+    if (await isNotPdf(tab.id)) {
+      // Rather than replace a page the user is reading with an error, offer
+      // the ways forward in the popup, and keep offering them on later clicks.
+      await setPopup(tab.id, NOT_PDF);
+      try {
+        await browser.action.openPopup({ windowId: tab.windowId });
+      } catch {}
+      return;
+    }
     panelPending.add(tab.id);
     await browser.tabs.update(tab.id, { url: viewerFor(url) });
   } else {
