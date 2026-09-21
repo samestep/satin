@@ -3,13 +3,13 @@
    so it behaves like any other extension popup — anchored to the toolbar button,
    dismissed by clicking away — and the page stays just the document. */
 /* Imported for its side effect: it shadows the canvas color accessors, and
-   publishes window.Satin. It used to be injected into viewer.html as a classic
-   script so it would run ahead of pdf.js, because anything painted before the
-   accessors were in place escaped untinted. That is no longer necessary — this
-   module opens the document itself (see boot), so nothing can be painted until
-   after this import has run. */
+   publishes window.Satin. It used to be a classic script so it would run ahead
+   of pdf.js, because anything painted before the accessors were in place
+   escaped untinted. That is no longer necessary — this module opens the
+   document itself (see boot), so nothing can be painted until after this
+   import has run. */
 import "./colors.js";
-import * as pdfjsLib from "../pdfjs/build/pdf.mjs";
+import * as pdfjsLib from "./pdfjs/build/pdf.mjs";
 
 // See background.js: Chrome names the namespace `chrome`. Guarded rather than
 // unconditional, because this viewer also has to run with no extension APIs at
@@ -18,6 +18,23 @@ globalThis.browser ??= globalThis.chrome;
 
 const engine = window.Satin;
 const getApp = () => window.PDFViewerApplication;
+
+/* This page is pdf.js's viewer.html moved to the extension root (see
+   reader.patch), while pdf.js expects to sit in its own web/ directory. The
+   page's <base> covers everything the browser resolves against the document —
+   scripts, styles, the worker, fetched resources, annotation images — but pdf.js
+   resolves a few resource locations itself against the page URL, so those are
+   pointed at its directory explicitly, before any document is opened. */
+const PDFJS_WEB = new URL("pdfjs/web/", import.meta.url);
+for (const [option, path] of [
+  ["workerSrc", "../build/pdf.worker.mjs"],
+  ["cMapUrl", "cmaps/"],
+  ["standardFontDataUrl", "standard_fonts/"],
+  ["iccUrl", "iccs/"],
+  ["wasmUrl", "wasm/"],
+]) {
+  window.PDFViewerApplicationOptions?.set(option, new URL(path, PDFJS_WEB).href);
+}
 
 /* Dark by default: the document's black goes to 90% lightness and its white to
    20%, which is the reading setting in practice. Only new documents see this;
@@ -312,7 +329,7 @@ function showEmptyState(kind) {
 
   const screen = make("section", { id: "satinEmpty" });
   screen.append(
-    make("img", { src: "../../icon-128.png", alt: "" }),
+    make("img", { src: new URL("icon-128.png", import.meta.url).href, alt: "" }),
     make("h1", {}, title),
     make("p", {}, body),
     open,

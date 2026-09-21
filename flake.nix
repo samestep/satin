@@ -2,7 +2,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     # The prebuilt pdf.js viewer. A release asset never moves, so `nix flake update` leaves this alone;
-    # to upgrade, change the version here (and in pdfjs.patch, if the anchor line moved).
+    # to upgrade, change the version here (and in reader.patch, if an anchor line moved).
     pdfjs = {
       url = "https://github.com/mozilla/pdf.js/releases/download/v6.3.289/pdfjs-6.3.289-dist.zip";
       flake = false;
@@ -33,13 +33,15 @@
           node ${./icon.mjs} > "$out"
         '';
         # The extension as a directory, which Chrome's "Load unpacked" takes: src/, icons rasterized from
-        # the logo, and the pdf.js distribution with one line of web/viewer.html changed (see pdfjs.patch;
-        # --fuzz=0 so that a pdf.js upgrade which moves the anchor fails the build rather than shipping a
-        # viewer with Satin silently dropped).
+        # the logo, the pdf.js distribution byte-for-byte as released (add-on reviewers check bundled
+        # libraries against the official release, so nothing in pdfjs/ may change), and reader.html, which
+        # is pdf.js's own viewer.html with three lines added (see reader.patch) written outside pdfjs/.
+        # --fuzz=0 so that a pdf.js upgrade which moves an anchor fails the build rather than shipping a
+        # viewer with Satin silently dropped.
         unpacked = pkgs.runCommand "satin-unpacked" { nativeBuildInputs = [ pkgs.resvg ]; } ''
           cp -r --no-preserve=mode ${./src} "$out"
           cp -r --no-preserve=mode ${pdfjs} "$out/pdfjs"
-          patch -p1 -d "$out/pdfjs" --fuzz=0 --no-backup-if-mismatch < ${./pdfjs.patch}
+          patch --fuzz=0 -o "$out/reader.html" "$out/pdfjs/web/viewer.html" ${./reader.patch}
           for s in 16 32 48 96 128; do
             resvg -w "$s" -h "$s" ${icon} "$out/icon-$s.png"
           done

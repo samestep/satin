@@ -29,7 +29,7 @@ globalThis.browser ??= globalThis.chrome;
  * reader.js then opens `src` itself. The alternative was patching the guard out
  * of pdf.js's minified bundle, which is both worse to review and worse to trust.
  */
-const VIEWER = "pdfjs/web/viewer.html";
+const VIEWER = "reader.html";
 const viewerUrl = browser.runtime.getURL(VIEWER);
 const isViewer = (url) => typeof url === "string" && url.startsWith(viewerUrl);
 

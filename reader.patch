@@ -1,0 +1,27 @@
+--- pdfjs/web/viewer.html
++++ reader.html
+@@ -23,13 +23,14 @@
+ <html dir="ltr" mozdisallowselectionprint>
+   <head>
+     <meta charset="utf-8" />
++    <base href="pdfjs/web/" />
+     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+     <meta name="google" content="notranslate" />
+     <title>PDF.js viewer</title>
+ 
+   <meta
+       http-equiv="Content-Security-Policy"
+-      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; img-src 'self' blob: data:; media-src blob:; font-src 'self' data:; connect-src * blob: data:; base-uri 'none'; form-action 'none';"
++      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; img-src 'self' blob: data:; media-src blob:; font-src 'self' data:; connect-src * blob: data: file:; base-uri 'self'; form-action 'none';"
+     />
+ 
+ <!-- This snippet is used in production (included from viewer.html) -->
+@@ -39,6 +40,8 @@
+     <link rel="stylesheet" href="viewer.css" />
+ 
+   <script src="viewer.mjs" type="module"></script>
++  <link rel="stylesheet" href="../../reader.css" />
++  <script src="../../reader.js" type="module"></script>
+   </head>
+ 
+   <body tabindex="0">
