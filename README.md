@@ -9,6 +9,10 @@ Satin is a browser extension that allows you map specific colors in a PDF file t
 
 https://addons.mozilla.org/en-US/firefox/addon/satin-reader/
 
+## Chrome
+
+https://chromewebstore.google.com/detail/cplhiegcphlcgpmnbkfihbkgkminghke
+
 ## Privacy
 
 Satin Reader reads the contents of PDFs you ask it to recolor. It also saves any custom colors you choose per PDF. All of this processing and storage happens entirely locally on your device.
