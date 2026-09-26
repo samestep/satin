@@ -10,13 +10,55 @@ let tabId = null;
 let tabUrl = "";
 let poll = null;
 
-async function send(cmd, args) {
-  if (tabId === null) return null;
-  try {
-    return await browser.tabs.sendMessage(tabId, { type: "satin", cmd, args });
-  } catch {
-    return null; // viewer navigated away or is still loading
+/* Orion on iOS sometimes has no active tab to report just as the popup opens,
+   so the lookup is retried on every poll until a viewer answers, rather than
+   done once at boot. */
+async function activeTab() {
+  for (const query of [
+    { active: true, currentWindow: true },
+    { active: true, lastFocusedWindow: true },
+  ]) {
+    try {
+      const [tab] = await browser.tabs.query(query);
+      if (tab) return tab;
+    } catch {}
   }
+  return null;
+}
+
+let stale = false;
+
+async function send(cmd, args) {
+  if (tabId === null || stale) {
+    const tab = await activeTab();
+    if (tab) {
+      tabId = tab.id;
+      tabUrl = tab.url ?? "";
+    }
+    if (tabId === null) return null;
+  }
+  let reply = null;
+  try {
+    reply = await browser.tabs.sendMessage(tabId, { type: "satin", cmd, args });
+  } catch {
+    // viewer navigated away or is still loading
+  }
+  /* Orion on iOS without the "tabs" permission does not always deliver
+     tabs.sendMessage to the viewer, so the same command is also broadcast:
+     the viewer in that tab answers, any other viewer stays silent. */
+  if (!reply?.ready) {
+    try {
+      reply = await browser.runtime.sendMessage({
+        type: "satin",
+        target: tabId,
+        cmd,
+        args,
+      });
+    } catch {}
+  }
+  // Not a viewer (yet): look the tab up afresh on the next poll.
+  stale = !reply?.ready;
+  return reply?.ready ? reply : null;
 }
 
 async function refresh(cmd = "state", args) {
@@ -196,7 +238,7 @@ document.addEventListener("click", (event) => {
 // ---------- boot ----------
 
 (async function boot() {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  const tab = await activeTab();
   tabId = tab?.id ?? null;
   tabUrl = tab?.url ?? "";
   // Set as this tab's popup by the background when the button was clicked on

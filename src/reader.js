@@ -229,13 +229,27 @@ if (typeof browser !== "undefined" && browser.runtime?.onMessage) {
      returning one is a Firefox extension to the API that Chrome does not
      implement. handle() is synchronous, so responding before the listener
      returns is well-defined in both. */
+  let myTabId;
+  browser.tabs
+    ?.getCurrent?.()
+    .then((tab) => (myTabId = tab?.id))
+    .catch(() => {});
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== "satin") return undefined;
+    // A broadcast from the popup (see popup.js) is meant for one tab. If this
+    // viewer cannot learn its own tab, the one on screen answers.
+    if (message.target !== undefined) {
+      const mine =
+        myTabId !== undefined
+          ? message.target === myTabId
+          : document.visibilityState === "visible";
+      if (!mine) return undefined;
+    }
     sendResponse(handle(message));
     return undefined;
   });
   // Tell the background this tab now holds the viewer, so it attaches the
-  // popup; see background.js for why it cannot tell from the tab's URL.
+  // popup; see background.js for why it cannot always tell from the tab's URL.
   browser.runtime.sendMessage({ type: "satin-viewer" })?.catch?.(() => {});
 }
 

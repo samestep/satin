@@ -37,11 +37,12 @@ const isViewer = (url) => typeof url === "string" && url.startsWith(viewerUrl);
 const viewerFor = (src) =>
   `${viewerUrl}?file=${src ? `&src=${encodeURIComponent(src)}` : ""}`;
 
-/* Which tabs hold the viewer is asked of the runtime, not read off tab URLs:
- * runtime.getContexts lists this extension's own documents by tab, whereas tab
- * URLs would need the "tabs" permission (Chrome hides even an extension's own
- * chrome-extension:// tab URLs without it), and "tabs" costs a "Read your
- * browsing history" warning at install time for nothing else.
+/* Which tabs hold the viewer is read off the tab's URL where the browser shows
+ * it (Firefox and Orion do, for our own pages), and otherwise asked of the
+ * runtime: Chrome hides even an extension's own chrome-extension:// tab URLs
+ * without the "tabs" permission, and "tabs" costs a "Read your browsing
+ * history" warning at install time for nothing else. runtime.getContexts lists
+ * this extension's own documents by tab and needs no permission.
  */
 const PANEL = "popup.html";
 // The same page in its other mode: what the button offers on a tab that is not
@@ -51,11 +52,18 @@ const NOT_PDF = "popup.html#not-pdf";
 const setPopup = (tabId, popup) =>
   browser.action.setPopup({ tabId, popup }).catch(() => {});
 
-// The viewer is the only page of ours that runs in a tab.
+/* The viewer is the only page of ours that runs in a tab. Two Orion quirks:
+ * on iOS runtime.getContexts does not exist, and calling a missing method
+ * throws before any .catch() could see it, so the call is made inside a
+ * .then(); on macOS it ignores the tabIds filter and reports every context
+ * with tabId -1, so only a context that names this very tab counts.
+ */
 const holdsViewer = (tabId) =>
-  browser.runtime
-    .getContexts({ contextTypes: ["TAB"], tabIds: [tabId] })
-    .then((contexts) => contexts.length > 0)
+  Promise.resolve()
+    .then(() =>
+      browser.runtime.getContexts({ contextTypes: ["TAB"], tabIds: [tabId] })
+    )
+    .then((contexts) => contexts.some((c) => c.tabId === tabId))
     .catch(() => false);
 
 const sync = async (tabId) =>
@@ -65,8 +73,10 @@ const sync = async (tabId) =>
 // document is still there and at "complete" the new one is. pdf.js also drives
 // the history API as the document loads, which Chrome reports as another
 // loading/complete pair on the same document.
-browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status) sync(tabId);
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!changeInfo.status) return;
+  if (tab?.url) setPopup(tabId, isViewer(tab.url) ? PANEL : "");
+  else sync(tabId);
 });
 
 /* Tabs that a click on the button sent to the viewer. When the viewer in one
@@ -77,9 +87,18 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
 const panelPending = new Set();
 browser.tabs.onRemoved.addListener((tabId) => panelPending.delete(tabId));
 
-// The viewer also announces itself as it starts, so the popup is in place
-// before "complete" and the first click is never a dud.
-browser.runtime.onMessage.addListener(async (message, sender) => {
+/* The viewer also announces itself as it starts, so the popup is in place
+ * before "complete" and the first click is never a dud.
+ *
+ * Deliberately not an async listener: a returned promise counts as this
+ * listener's reply to the message, and would race the viewer's own reply to
+ * the popup's broadcast (see popup.js).
+ */
+browser.runtime.onMessage.addListener((message, sender) => {
+  handleMessage(message, sender);
+});
+
+async function handleMessage(message, sender) {
   if (message?.type === "satin-viewer" && sender.tab) {
     await setPopup(sender.tab.id, PANEL);
     if (panelPending.delete(sender.tab.id) && sender.tab.active) {
@@ -96,12 +115,16 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
   if (message?.type === "satin-open-file") {
     browser.tabs.create({ url: viewerFor(null) });
   }
-});
+}
 
 // Viewers already open when this script starts (session restore, reload).
-browser.runtime
-  .getContexts({ contextTypes: ["TAB"] })
-  .then((contexts) => contexts.forEach((c) => setPopup(c.tabId, PANEL)))
+// Inside a .then() for the same reason as in holdsViewer: a throw here would
+// stop this script before the click listener below is added.
+Promise.resolve()
+  .then(() => browser.runtime.getContexts({ contextTypes: ["TAB"] }))
+  .then((contexts) =>
+    contexts.forEach((c) => c.tabId >= 0 && setPopup(c.tabId, PANEL))
+  )
   .catch(() => {});
 
 /* Whether the tab is showing something other than a PDF, judged by the
