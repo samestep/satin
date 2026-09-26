@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Satin",
+  "name": "Satin Reader",
   "version": "1.0.1",
   "description": "Remap colors in a PDF. The default is a dark mode mapping white to dark grey and black to light grey, preserving hue and saturation.",
   "browser_specific_settings": {
