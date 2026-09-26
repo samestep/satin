@@ -61,7 +61,6 @@
             {
               passthru = { inherit addonId; };
               meta = {
-                description = "Browser extension that recolors PDFs live, remapping the document's real palette";
                 license = pkgs.lib.licenses.mit;
                 platforms = pkgs.lib.platforms.all;
               };
