@@ -16,7 +16,7 @@
   "permissions": ["storage", "scripting"],
   "host_permissions": ["<all_urls>", "file://*/*"],
   "action": {
-    "default_title": "Satin",
+    "default_title": "Satin Reader",
     "default_icon": {
       "16": "icon-16.png",
       "32": "icon-32.png"
