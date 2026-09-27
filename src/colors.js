@@ -8,7 +8,9 @@
  * The page background falls out of the same mechanism: pdf.js fills the canvas
  * with white before drawing, and that assignment is intercepted like any other.
  * The PDF default color (black, often never set explicitly in the file) is
- * handled by priming each context before a render pass.
+ * handled by priming each context before a render pass. Axial and radial
+ * shadings are painted as canvas gradients, whose colors go through
+ * CanvasGradient's addColorStop instead, so that is shadowed as well.
  *
  * Raster images are deliberately out of scope: they reach the canvas through
  * drawImage/putImageData, which bypass these accessors, and are left untouched.
@@ -268,6 +270,27 @@
           });
         }
         Object.defineProperty(proto, "__satinInstalled", {
+          value: true,
+          enumerable: false,
+        });
+        patched++;
+      }
+      /* Axial and radial shadings reach fillStyle as a CanvasGradient, which
+         transform() has to pass through; their colors arrive separately, one
+         addColorStop per stop. pdf.js builds a fresh gradient on every render,
+         so remapping the stops as they are added is enough. One prototype
+         serves both context types. */
+      const gradient = w.CanvasGradient?.prototype;
+      if (gradient && !gradient.__satinInstalled) {
+        const addColorStop = gradient.addColorStop;
+        Object.defineProperty(gradient, "addColorStop", {
+          configurable: true,
+          writable: true,
+          value: function (offset, color) {
+            return addColorStop.call(this, offset, engine.transform(color));
+          },
+        });
+        Object.defineProperty(gradient, "__satinInstalled", {
           value: true,
           enumerable: false,
         });
